@@ -1,0 +1,187 @@
+{{/* 
+    WordGate分页组件 
+    用法: 
+    {{ partial "wordgate-pagination.html" (dict "pagination" .pagination "baseUrl" .baseUrl) }}
+    
+    参数说明:
+    - pagination: 分页数据，包含 limit(每页数量)、page(当前页码)、total(总记录数)
+    - baseUrl: 基础URL，用于生成分页链接，如 "/orders" 或 "/courses"
+*/}}
+
+{{ $pagination := .pagination }}
+{{ $baseUrl := .baseUrl | default "#" }}
+
+{{ if and $pagination $pagination.total }}
+    {{ $limit := int $pagination.limit }}
+    {{ $currentPage := int $pagination.page }}
+    {{ $total := int $pagination.total }}
+    
+    {{ $totalPagesFloat := div (float $total) (float $limit) }}
+    {{ $totalPages := cond (eq (float (int $totalPagesFloat)) $totalPagesFloat) (int $totalPagesFloat) (add (int $totalPagesFloat) 1) }}
+    
+    {{/* 只有当总页数大于1时才显示分页 */}}
+    {{ if gt $totalPages 1 }}
+    <div class="wordgate-pagination">
+        <div class="pagination-container">
+            {{/* 上一页按钮 */}}
+            {{ if gt $currentPage 1 }}
+                <a href="{{ $baseUrl }}?page={{ sub $currentPage 1 }}" class="pagination-btn prev-btn" aria-label="上一页">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            {{ else }}
+                <span class="pagination-btn prev-btn disabled" aria-label="上一页">
+                    <i class="fas fa-chevron-left"></i>
+                </span>
+            {{ end }}
+            
+            {{/* 分页逻辑：显示当前页附近的页码 */}}
+            {{ $startPage := 1 }}
+            {{ $endPage := $totalPages }}
+            
+            {{/* 当页数较多时，只显示周围的页码 */}}
+            {{ if gt $totalPages 7 }}
+                {{ $startPage = cond (lt (sub $currentPage 2) 1) 1 (sub $currentPage 2) }}
+                {{ $endPage = cond (gt (add $currentPage 2) $totalPages) $totalPages (add $currentPage 2) }}
+                
+                {{/* 确保始终显示至少5个页码 */}}
+                {{ if lt (sub $endPage $startPage) 4 }}
+                    {{ if le $currentPage 3 }}
+                        {{ $endPage = cond (gt 5 $totalPages) $totalPages 5 }}
+                    {{ else }}
+                        {{ $startPage = cond (lt (sub $endPage 4) 1) 1 (sub $endPage 4) }}
+                    {{ end }}
+                {{ end }}
+            {{ end }}
+            
+            {{/* 显示第一页和省略号 */}}
+            {{ if gt $startPage 1 }}
+                <a href="{{ $baseUrl }}?page=1" class="pagination-btn">1</a>
+                {{ if gt $startPage 2 }}
+                    <span class="pagination-ellipsis">...</span>
+                {{ end }}
+            {{ end }}
+            
+            {{/* 显示页码 */}}
+            {{ $loopCount := add (sub $endPage $startPage) 1 }}
+            {{ range $i := seq $loopCount }}
+                {{ $page := add $startPage (sub $i 1) }}
+                {{ if eq $page $currentPage }}
+                    <span class="pagination-btn current">{{ $page }}</span>
+                {{ else }}
+                    <a href="{{ $baseUrl }}?page={{ $page }}" class="pagination-btn">{{ $page }}</a>
+                {{ end }}
+            {{ end }}
+            
+            {{/* 显示最后一页和省略号 */}}
+            {{ if lt $endPage $totalPages }}
+                {{ if lt $endPage (sub $totalPages 1) }}
+                    <span class="pagination-ellipsis">...</span>
+                {{ end }}
+                <a href="{{ $baseUrl }}?page={{ $totalPages }}" class="pagination-btn">{{ $totalPages }}</a>
+            {{ end }}
+            
+            {{/* 下一页按钮 */}}
+            {{ if lt $currentPage $totalPages }}
+                <a href="{{ $baseUrl }}?page={{ add $currentPage 1 }}" class="pagination-btn next-btn" aria-label="下一页">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            {{ else }}
+                <span class="pagination-btn next-btn disabled" aria-label="下一页">
+                    <i class="fas fa-chevron-right"></i>
+                </span>
+            {{ end }}
+        </div>
+        
+        <div class="pagination-info">
+            {{ $startItem := add (mul (sub $currentPage 1) $limit) 1 }}
+            {{ $endItem := cond (lt (mul $currentPage $limit) $total) (mul $currentPage $limit) $total }}
+            共 {{ $total }} 条记录，当前显示第 {{ $startItem }} - {{ $endItem }} 条
+        </div>
+    </div>
+    {{ end }}
+{{ end }}
+
+<style>
+.wordgate-pagination {
+    width: 100%;
+    margin: 30px 0;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.pagination-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    margin: 0 2px;
+    border-radius: 4px;
+    background-color: #fff;
+    color: #333;
+    text-decoration: none;
+    border: 1px solid #e0e0e0;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.pagination-btn:hover {
+    background-color: #f5f5f5;
+    border-color: #d0d0d0;
+}
+
+.pagination-btn.current {
+    background-color: #3498db;
+    color: white;
+    border-color: #3498db;
+    cursor: default;
+}
+
+.pagination-btn.disabled {
+    color: #ccc;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+.prev-btn, .next-btn {
+    padding: 0;
+    width: 32px;
+}
+
+.pagination-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    color: #666;
+}
+
+.pagination-info {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #666;
+}
+
+@media (max-width: 600px) {
+    .pagination-btn {
+        min-width: 28px;
+        height: 28px;
+        padding: 0 8px;
+        font-size: 12px;
+    }
+    
+    .pagination-info {
+        font-size: 11px;
+    }
+}
+</style> 

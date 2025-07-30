@@ -1,0 +1,168 @@
+{{ $redirect_uri := .Get "redirect_uri" }}
+{{ $state := .Get "state" }}
+{{ $provider := .Get "provider" }}
+
+<div id="wg-oauth-callback" 
+     x-data="oauthCallbackComponent()"
+     x-init="init()"
+     x-cloak>
+    
+    <div class="wordgate-callback-container">
+        <template x-if="isLoading">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <div class="loading-text">处理中...</div>
+            </div>
+        </template>
+        
+        <template x-if="error">
+            <div class="error-message">
+                <p x-text="'登录失败：' + error"></p>
+                <button @click="window.history.back()" class="pure-button">返回</button>
+            </div>
+        </template>
+    </div>
+</div>
+
+<script>
+  // OAuth回调组件
+  window.oauthCallbackComponent = function() {
+    return {
+      error: '',
+      isLoading: true,
+      provider: '{{ $provider }}',
+      
+      init() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+        const error = urlParams.get('error');
+        
+        if (error) {
+          this.handleError(error);
+          return;
+        }
+        
+        if (!code) {
+          this.handleError('未收到授权码');
+          return;
+        }
+        
+        this.handleOAuthCallback(this.provider, code, state);
+      },
+      
+      async handleOAuthCallback(provider, code, state) {
+        try {
+          const {data} = await $wg.with('auth').oauth_login({
+            provider: provider,
+            code: code
+          });
+          
+          // 检查data的格式，确保包含必要字段
+          if (!data || !data.token) {
+            this.handleError('登录响应格式错误');
+            return;
+          }
+          
+          // 保存登录状态，使用新的接口
+          $wg.auth.setToken({
+            token: data.token,
+            expired_at: data.expired_at,
+            user_id: data.user_id,
+            user: data.user
+          });
+          
+          // 处理重定向
+          this.handleRedirect(data, state);
+        } catch (error) {
+          this.handleError(error.message || '登录失败');
+        }
+      },
+      
+      handleRedirect(data, state) {
+        // 获取URL参数
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        let redirectUrl = state || '{{ $redirect_uri }}' || '/';
+        
+        // 添加登录成功的参数
+        const params = new URLSearchParams({
+          login_success: 'true',
+          is_new_user: (data.is_new_user || false).toString()
+        });
+        
+        // 构建最终的重定向URL
+        redirectUrl = redirectUrl + (redirectUrl.includes('?') ? '&' : '?') + params.toString();
+        
+        // 使用setTimeout确保存储操作完成后再跳转
+        setTimeout(() => {
+          // 执行重定向
+          window.location.href = redirectUrl;
+        }, 300);
+      },
+      
+      handleError(message) {
+        this.error = message;
+        this.isLoading = false;
+      }
+    };
+  };
+</script>
+
+<style>
+.wordgate-callback-container {
+    max-width: 500px;
+    margin: 2rem auto;
+    padding: 2rem;
+    text-align: center;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    color: #666;
+    font-size: 1rem;
+}
+
+.error-message {
+    color: #721c24;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+.error-message button {
+    margin-top: 1rem;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+[x-cloak] {
+    display: none !important;
+}
+</style> 

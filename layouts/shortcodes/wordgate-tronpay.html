@@ -1,0 +1,611 @@
+{{/* WordGate TronPay支付页面短代码 */}}
+
+
+
+<script>
+  // 确保Alpine.js组件函数在全局作用域中可用
+  window.tronPay = function() {
+    return {
+      // 数据状态
+      intentID: '',
+      amount: '',
+      currency: 'USDT',
+      address: '',
+      qrCode: '',
+      status: 'pending',
+      expireAt: null,
+      timeRemaining: 1800,
+      txHash: '',
+      confirmations: 0,
+      minConfirmations: 6,
+      loading: true,
+      error: false,
+      errorMessage: '',
+      copySuccess: false,
+      pollTimer: null,
+      countdownTimer: null,
+      qrCodeInstance: null,
+      isTestnet: false,
+
+      // 初始化方法
+      init() {
+        this.intentID = $wg.helper.getQueryParam('intent_id');
+        
+        if (!this.intentID) {
+          this.errorMessage = '支付意图ID不能为空';
+          this.error = true;
+          this.loading = false;
+          return;
+        }
+        
+        this.loadPaymentInfo();
+      },
+
+      // 加载支付信息
+      async loadPaymentInfo() {
+        try {
+          this.loading = true;
+          this.error = false;
+          
+          const {data} = await $wg.with('payments').get_tron_address(this.intentID);
+          
+          if (!data || !data.address) {
+            throw new Error('获取支付地址失败');
+          }
+          
+          this.address = data.address;
+          this.amount = data.amount;
+          this.currency = data.currency || 'USDT';
+          this.qrCode = data.qr_code;
+          this.expireAt = new Date(data.expire_at);
+          this.isTestnet = data.is_testnet || false;
+          
+          this.$nextTick(() => {
+            this.generateQRCode();
+          });
+          
+          this.updateTimeRemaining();
+          await this.checkStatus();
+          
+          this.startCountdown();
+          this.startPolling();
+          
+        } catch (err) {
+          console.error('加载支付信息失败:', err);
+          this.errorMessage = err.message || '加载支付信息失败';
+          this.error = true;
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      // 生成二维码
+      generateQRCode() {
+        if (!this.qrCode || !this.$refs.qrCanvas) return;
+        
+        this.qrCodeInstance = new QRious({
+          element: this.$refs.qrCanvas,
+          value: this.qrCode,
+          size: 200,
+          level: 'H',
+          background: 'white',
+          foreground: 'black'
+        });
+      },
+
+      // 更新剩余时间
+      updateTimeRemaining() {
+        if (!this.expireAt) return;
+        
+        const now = new Date();
+        const diff = Math.max(0, Math.floor((this.expireAt - now) / 1000));
+        this.timeRemaining = diff;
+        
+        if (this.timeRemaining <= 0 && this.status === 'pending') {
+          this.status = 'timeout';
+          this.stopPolling();
+        }
+      },
+
+      // 开始倒计时
+      startCountdown() {
+        if (this.countdownTimer) {
+          clearInterval(this.countdownTimer);
+        }
+        
+        this.countdownTimer = setInterval(() => {
+          this.updateTimeRemaining();
+        }, 1000);
+      },
+
+      // 开始轮询
+      startPolling() {
+        this.pollTimer = $wg.pollTronStatus(this.intentID, (result) => {
+          this.status = result.status;
+          this.txHash = result.tx_hash || '';
+          this.confirmations = result.confirmations || 0;
+          
+          if (result.status === 'paid' || result.status === 'timeout') {
+            return false;
+          }
+          
+          return true;
+        }, 5000);
+      },
+
+      // 停止轮询
+      stopPolling() {
+        if (this.pollTimer) {
+          this.pollTimer.stop();
+        }
+        
+        if (this.countdownTimer) {
+          clearInterval(this.countdownTimer);
+        }
+      },
+
+      // 检查支付状态
+      async checkStatus() {
+        try {
+          const {data: result} = await $wg.with('payments').check_tron_status(this.intentID);
+          this.status = result.status;
+          this.txHash = result.tx_hash || '';
+          this.confirmations = result.confirmations || 0;
+          
+          if (result.status === 'paid' || result.status === 'timeout') {
+            this.stopPolling();
+          }
+        } catch (err) {
+          console.error('检查支付状态失败:', err);
+        }
+      },
+
+      // 格式化时间
+      formatTime(seconds) {
+        if (seconds <= 0) return '00:00';
+        
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      },
+
+      // 格式化交易哈希
+      formatTxHash(hash) {
+        if (!hash) return '';
+        
+        if (hash.length > 16) {
+          return hash.substring(0, 8) + '...' + hash.substring(hash.length - 8);
+        }
+        
+        return hash;
+      },
+
+      // 复制地址
+      copyAddress() {
+        if (!this.address) return;
+        
+        navigator.clipboard.writeText(this.address).then(() => {
+          this.copySuccess = true;
+          setTimeout(() => {
+            this.copySuccess = false;
+          }, 2000);
+        }).catch(err => {
+          console.error('复制失败:', err);
+        });
+      },
+
+      // 处理支付成功
+      handleSuccess() {
+        window.location.href = `/pay-result?order_no=${$wg.helper.getQueryParam('order_no')}`;
+      },
+
+      // 返回上一页
+      goBack() {
+        history.back();
+      }
+    };
+  };
+</script>
+  
+<div class="wordgate-tron-pay" x-data="tronPay()" x-init="init()" x-cloak>
+  <!-- 加载状态 -->
+  <div class="pure-g" x-show="loading">
+    <div class="pure-u-1">
+      <div class="wordgate-loading">
+        <div class="wordgate-spinner"></div>
+        <div>正在加载支付信息...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 错误状态 -->
+  <div class="pure-g" x-show="error && !loading">
+    <div class="pure-u-1">
+      <div class="wordgate-error">
+        <div class="wordgate-error-content">
+          <svg class="wordgate-error-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div class="wordgate-error-message" x-text="errorMessage"></div>
+          <button @click="goBack" class="pure-button pure-button-primary">返回上一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 支付页面主体 -->
+  <div class="wordgate-container" x-show="!loading && !error">
+    <div class="pure-g">
+      <div class="pure-u-1 pure-u-md-1-2">
+        <div class="wordgate-pay-info-block">
+          <h2 class="wordgate-pay-title">
+            USDT-TRC20支付
+            <span x-show="isTestnet" class="wordgate-testnet-badge">测试网络</span>
+          </h2>
+          
+          <!-- 支付金额显示 -->
+          <div class="wordgate-amount-display">
+            <div class="amount-label">支付金额</div>
+            <div class="amount-value">
+              <span x-text="parseFloat(amount).toFixed(2)"></span>
+              <span class="amount-currency" x-text="currency"></span>
+            </div>
+          </div>
+          
+          <!-- 倒计时显示 -->
+          <div class="wordgate-countdown" :class="{'wordgate-countdown-warning': timeRemaining < 300}">
+            <div class="countdown-label">支付倒计时</div>
+            <div class="countdown-value" x-text="formatTime(timeRemaining)"></div>
+          </div>
+          
+          <!-- USDT-TRC20地址显示 -->
+          <div class="wordgate-address-display">
+            <div class="address-label">收款地址 <span class="copy-hint">(点击复制)</span></div>
+            <div class="address-value" @click="copyAddress" x-text="address"></div>
+            <div x-show="copySuccess" class="copy-success">已复制到剪贴板</div>
+          </div>
+          
+          <!-- 支付状态显示 -->
+          <div class="wordgate-status-display">
+            <div class="status-label">支付状态</div>
+            <div class="status-value" :class="'status-' + status">
+              <span x-show="status === 'pending'" class="status-pending">等待支付</span>
+              <span x-show="status === 'processing'" class="status-processing">处理中 (确认数: <span x-text="confirmations"></span>/<span x-text="minConfirmations"></span>)</span>
+              <span x-show="status === 'paid'" class="status-paid">支付成功</span>
+              <span x-show="status === 'timeout'" class="status-timeout">支付超时</span>
+              <span x-show="status === 'failed'" class="status-failed">支付失败</span>
+            </div>
+          </div>
+          
+          <!-- 交易哈希显示 -->
+          <div class="wordgate-tx-display" x-show="txHash">
+            <div class="tx-label">交易哈希</div>
+            <div class="tx-value">
+              <a :href="'https://tronscan.org/#/transaction/' + txHash" target="_blank" x-text="formatTxHash(txHash)"></a>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="pure-u-1 pure-u-md-1-2">
+        <div class="wordgate-pay-qr-block">
+          <!-- 二维码显示 -->
+          <div class="wordgate-qr-code">
+            <canvas id="tron-qrcode" x-ref="qrCanvas"></canvas>
+          </div>
+          
+          <!-- 操作引导 -->
+          <div class="wordgate-payment-guide">
+            <h3>支付指南</h3>
+            <ol class="guide-steps">
+              <li>打开您的TRON钱包应用</li>
+              <li>扫描上方二维码或复制地址</li>
+              <li>支付<span x-text="parseFloat(amount).toFixed(2)"></span> <span x-text="currency"></span></li>
+              <li>等待区块链确认(约2-5分钟)</li>
+              <li>确认后系统将自动跳转</li>
+            </ol>
+          </div>
+          
+          <!-- 支付结果按钮 -->
+          <div class="wordgate-action-buttons" x-show="status === 'paid'">
+            <button @click="handleSuccess" class="pure-button pure-button-primary wordgate-success-button">查看订单</button>
+          </div>
+          
+          <!-- 超时按钮 -->
+          <div class="wordgate-action-buttons" x-show="status === 'timeout'">
+            <button @click="goBack" class="pure-button wordgate-timeout-button">返回支付选择</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 支付注意事项 -->
+    <div class="pure-g">
+      <div class="pure-u-1">
+        <div class="wordgate-payment-notes">
+          <h3>注意事项</h3>
+          <ul>
+            <li>请在倒计时结束前完成支付，超时订单将自动取消</li>
+            <li>请确保支付的是USDT-TRC20代币，其他代币不会被识别</li>
+            <li>请勿重复支付，确保金额准确无误</li>
+            <li>支付确认需要区块链网络确认，可能需要几分钟</li>
+            <li>如有问题，请联系客服并提供订单号</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.wordgate-tron-pay {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  margin: 0 auto;
+  max-width: 1200px;
+  padding: 1rem;
+}
+
+.wordgate-loading, .wordgate-error {
+  text-align: center;
+  padding: 2rem;
+}
+
+.wordgate-spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid #3498db;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.wordgate-container {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.wordgate-pay-info-block,
+.wordgate-pay-qr-block {
+  padding: 1.5rem;
+}
+
+.wordgate-pay-title {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.wordgate-amount-display {
+  margin-bottom: 1.5rem;
+}
+
+.amount-label,
+.countdown-label,
+.address-label,
+.status-label,
+.tx-label {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.amount-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.amount-currency {
+  font-size: 1.2rem;
+  margin-left: 0.3rem;
+}
+
+.wordgate-countdown {
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  padding: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.countdown-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.wordgate-countdown-warning .countdown-value {
+  color: #e74c3c;
+}
+
+.wordgate-address-display {
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  padding: 0.8rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.copy-hint {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.address-value {
+  font-family: monospace;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.8rem;
+  font-size: 0.9rem;
+  word-break: break-all;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.address-value:hover {
+  background-color: #f0f0f0;
+}
+
+.copy-success {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  background-color: #27ae60;
+  color: white;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  animation: fadeOut 2s forwards;
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.wordgate-status-display {
+  margin-bottom: 1.5rem;
+}
+
+.status-value {
+  font-size: 1.2rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+}
+
+.status-pending {
+  color: #f39c12;
+}
+
+.status-processing {
+  color: #3498db;
+}
+
+.status-paid {
+  color: #27ae60;
+}
+
+.status-timeout, .status-failed {
+  color: #e74c3c;
+}
+
+.wordgate-tx-display {
+  margin-bottom: 1.5rem;
+}
+
+.tx-value {
+  word-break: break-all;
+}
+
+.tx-value a {
+  color: #3498db;
+  text-decoration: none;
+}
+
+.tx-value a:hover {
+  text-decoration: underline;
+}
+
+.wordgate-qr-code {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+#tron-qrcode {
+  max-width: 200px;
+  height: auto;
+}
+
+.wordgate-payment-guide {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.wordgate-payment-guide h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.guide-steps {
+  padding-left: 1.5rem;
+  margin-bottom: 0;
+}
+
+.guide-steps li {
+  margin-bottom: 0.8rem;
+}
+
+.wordgate-action-buttons {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.wordgate-success-button {
+  background-color: #27ae60;
+  color: white;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+}
+
+.wordgate-timeout-button {
+  background-color: #e74c3c;
+  color: white;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+}
+
+.wordgate-payment-notes {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.wordgate-payment-notes h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.wordgate-payment-notes ul {
+  padding-left: 1.5rem;
+  margin-bottom: 0;
+}
+
+.wordgate-payment-notes li {
+  margin-bottom: 0.5rem;
+  color: #555;
+}
+
+.wordgate-testnet-badge {
+  display: inline-block;
+  background-color: #e74c3c;
+  color: white;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  margin-left: 1rem;
+  vertical-align: middle;
+  font-weight: normal;
+}
+</style>

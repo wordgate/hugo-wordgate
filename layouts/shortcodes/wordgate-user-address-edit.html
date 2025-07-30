@@ -1,0 +1,515 @@
+{{/* WordGate用户地址编辑页面短代码 */}}
+{{/*
+使用方式:
+{{< wordgate-user-address-edit >}}
+
+此页面用于添加和编辑地址，支持URL参数：
+- action: "add" 或 "edit"
+- id: 编辑时的地址ID
+*/}}
+
+<div class="wordgate-container address-edit-page" x-data="addressEditPageComponent()">
+  <!-- 页面头部 -->
+  <div class="page-header">
+    <div class="header-content">
+      <a href="javascript:history.back()" class="back-btn">
+        <span class="back-icon">←</span> {{ i18n "back" | default "返回" }}
+      </a>
+      <h1 class="page-title" x-text="isEditing ? '{{ i18n "edit_address" | default "编辑地址" }}' : '{{ i18n "add_new_address" | default "添加新地址" }}'">
+        {{ i18n "add_new_address" | default "添加新地址" }}
+      </h1>
+    </div>
+  </div>
+
+  <!-- 地址表单 -->
+  <div class="address-form-container">
+    <div class="address-form-card">
+      <!-- 错误信息 -->
+      <div class="address-form-error" x-show="error" x-text="error"></div>
+      
+      <form x-on:submit.prevent="saveAddress" class="pure-form pure-form-stacked address-form">
+        <fieldset>
+          <!-- 收件人信息 -->
+          <div class="pure-g address-form-row">
+            <div class="pure-u-1 pure-u-md-1-2">
+              <label for="recipient-name">{{ i18n "recipient_name" | default "收件人姓名" }} *</label>
+              <input type="text" id="recipient-name" x-model="addressForm.name" required 
+                     class="pure-input-1" placeholder="{{ i18n "enter_recipient_name" | default "请输入收件人姓名" }}">
+            </div>
+            <div class="pure-u-1 pure-u-md-1-2">
+              <label for="phone-number">{{ i18n "phone_number" | default "联系电话" }} *</label>
+              <input type="tel" id="phone-number" x-model="addressForm.phone" required 
+                     class="pure-input-1" placeholder="{{ i18n "enter_phone_number" | default "请输入联系电话" }}">
+            </div>
+          </div>
+          
+          <!-- 地址信息 -->
+          <div class="pure-g address-form-row">
+            <div class="pure-u-1 pure-u-md-1-3">
+              <label for="province">{{ i18n "province" | default "省份" }} *</label>
+              <input type="text" id="province" x-model="addressForm.province" required 
+                     class="pure-input-1" placeholder="{{ i18n "enter_province" | default "请选择省份" }}">
+            </div>
+            <div class="pure-u-1 pure-u-md-1-3">
+              <label for="city">{{ i18n "city" | default "城市" }} *</label>
+              <input type="text" id="city" x-model="addressForm.city" required 
+                     class="pure-input-1" placeholder="{{ i18n "enter_city" | default "请选择城市" }}">
+            </div>
+            <div class="pure-u-1 pure-u-md-1-3">
+              <label for="district">{{ i18n "district" | default "区县" }}</label>
+              <input type="text" id="district" x-model="addressForm.district" 
+                     class="pure-input-1" placeholder="{{ i18n "enter_district" | default "请选择区县" }}">
+            </div>
+          </div>
+          
+          <!-- 详细地址和邮编 -->
+          <div class="pure-g address-form-row">
+            <div class="pure-u-1 pure-u-md-2-3">
+              <label for="street-address">{{ i18n "street_address" | default "详细地址" }} *</label>
+              <input type="text" id="street-address" x-model="addressForm.street" required 
+                     class="pure-input-1" placeholder="{{ i18n "enter_street_address" | default "请输入详细地址" }}">
+            </div>
+            <div class="pure-u-1 pure-u-md-1-3">
+              <label for="postal-code">{{ i18n "postal_code" | default "邮政编码" }}</label>
+              <input type="text" id="postal-code" x-model="addressForm.postalCode" 
+                     class="pure-input-1" placeholder="{{ i18n "enter_postal_code" | default "请输入邮政编码" }}">
+            </div>
+          </div>
+          
+          <!-- 地址标签和默认设置 -->
+          <div class="pure-g address-form-row">
+            <div class="pure-u-1 pure-u-md-1-2">
+              <label for="address-label">{{ i18n "address_label" | default "地址标签" }}</label>
+              <select id="address-label" x-model="addressForm.label" class="pure-input-1">
+                <option value="家">{{ i18n "home" | default "家" }}</option>
+                <option value="公司">{{ i18n "company" | default "公司" }}</option>
+                <option value="学校">{{ i18n "school" | default "学校" }}</option>
+                <option value="其他">{{ i18n "other" | default "其他" }}</option>
+              </select>
+            </div>
+            <div class="pure-u-1 pure-u-md-1-2">
+              <label class="pure-checkbox default-address-checkbox">
+                <input type="checkbox" x-model="addressForm.isDefault"> 
+                <span class="checkmark"></span>
+                {{ i18n "set_as_default" | default "设为默认地址" }}
+              </label>
+            </div>
+          </div>
+        </fieldset>
+        
+        <div class="address-form-actions">
+          <button type="button" class="pure-button form-cancel-btn" x-on:click="cancel">
+            {{ i18n "cancel" | default "取消" }}
+          </button>
+          <button type="submit" class="pure-button pure-button-primary form-submit-btn" :disabled="isSaving">
+            <span x-show="!isSaving" x-text="isEditing ? '{{ i18n "update_address" | default "更新地址" }}' : '{{ i18n "save_address" | default "保存地址" }}'"></span>
+            <span x-show="isSaving">{{ i18n "saving" | default "保存中..." }}</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// 确保Alpine.js组件函数在全局作用域中可用
+window.addressEditPageComponent = function() {
+  return {
+    // 状态
+    isEditing: false,
+    editingAddressId: null,
+    isSaving: false,
+    error: null,
+    
+    // 表单数据
+    addressForm: {
+      name: '',
+      phone: '',
+      province: '',
+      city: '',
+      district: '',
+      street: '',
+      postalCode: '',
+      isDefault: false,
+      label: '家'
+    },
+    
+    init() {
+      this.parseUrlParams();
+      this.loadAddressData();
+    },
+    
+    parseUrlParams() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get('action');
+      const id = urlParams.get('id');
+      
+      this.isEditing = action === 'edit' && id;
+      this.editingAddressId = id;
+      
+      console.log('[AddressEdit] 页面参数:', { action, id, isEditing: this.isEditing });
+    },
+    
+    async loadAddressData() {
+      if (!this.isEditing || !this.editingAddressId) {
+        return;
+      }
+      
+      try {
+        const {data: address} = await $wg.with('addresses').get(this.editingAddressId);
+        
+        console.log('[AddressEdit] 加载数据:', address);
+        this.loadAddressDataToForm(address);
+      } catch (error) {
+        console.error('[AddressEdit] 加载地址数据失败:', error);
+        this.error = error.message || '{{ i18n "load_address_failed" | default "加载地址失败" }}';
+      }
+    },
+    
+    loadAddressDataToForm(address) {
+      this.addressForm = {
+        name: address.name || '',
+        phone: address.phone || '',
+        province: address.province || '',
+        city: address.city || '',
+        district: address.district || '',
+        street: address.street || '',
+        postalCode: address.postalCode || '',
+        isDefault: address.isDefault || false,
+        label: address.label || '家'
+      };
+      this.error = null;
+    },
+    
+    async saveAddress() {
+      if (!this.validateForm()) {
+        return;
+      }
+      
+      try {
+        this.isSaving = true;
+        this.error = null;
+        
+        if (this.isEditing) {
+          // 更新地址
+          const {data: address} = await $wg.with('addresses').update(this.editingAddressId, this.addressForm);
+          console.log('[AddressEdit] 更新地址成功:', address);
+        } else {
+          // 创建新地址
+          const {data: address} = await $wg.with('addresses').create(this.addressForm);
+          console.log('[AddressEdit] 创建地址成功:', address);
+        }
+        
+        // 保存成功，返回上一页
+        this.goBack();
+      } catch (error) {
+        console.error('[AddressEdit] 保存地址失败:', error);
+        
+        // 处理特定错误
+        if (error.code === 401) {
+          this.error = '{{ i18n "login_required" | default "请先登录" }}';
+          setTimeout(() => {
+            window.location.href = '/login/';
+          }, 1500);
+        } else if (error.code === 422) {
+          // 验证错误，通常包含具体的字段错误信息
+          this.error = error.message || '{{ i18n "invalid_form_data" | default "表单数据不正确" }}';
+        } else {
+          this.error = error.message || '{{ i18n "save_address_failed" | default "保存地址失败" }}';
+        }
+      } finally {
+        this.isSaving = false;
+      }
+    },
+    
+    validateForm() {
+      // 验证必填字段
+      if (!this.addressForm.name.trim()) {
+        this.error = '{{ i18n "recipient_name_required" | default "请输入收件人姓名" }}';
+        return false;
+      }
+      
+      if (!this.addressForm.phone.trim()) {
+        this.error = '{{ i18n "phone_number_required" | default "请输入联系电话" }}';
+        return false;
+      }
+      
+      if (!this.addressForm.province.trim()) {
+        this.error = '{{ i18n "province_required" | default "请选择省份" }}';
+        return false;
+      }
+      
+      if (!this.addressForm.city.trim()) {
+        this.error = '{{ i18n "city_required" | default "请选择城市" }}';
+        return false;
+      }
+      
+      if (!this.addressForm.street.trim()) {
+        this.error = '{{ i18n "street_address_required" | default "请输入详细地址" }}';
+        return false;
+      }
+      
+      // 验证手机号格式
+      const phoneRegex = /^1[3-9]\d{9}$/;
+      if (!phoneRegex.test(this.addressForm.phone.trim())) {
+        this.error = '{{ i18n "invalid_phone_number" | default "请输入正确的手机号码" }}';
+        return false;
+      }
+      
+      return true;
+    },
+    
+    cancel() {
+      this.goBack();
+    },
+    
+    goBack() {
+      // 检查是否有上一页历史
+      if (document.referrer && document.referrer !== window.location.href) {
+        history.back();
+      } else {
+        // 没有历史记录，跳转到地址列表页
+        window.location.href = '/addresses/';
+      }
+    }
+  };
+};
+</script>
+
+<style>
+/* 地址编辑页面样式 */
+.address-edit-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #4a5568;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.back-btn:hover {
+  color: #2d3748;
+}
+
+.back-icon {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.page-title {
+  margin: 0;
+  color: #2d3748;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.address-form-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.address-form-card {
+  padding: 2rem;
+}
+
+.address-form-error {
+  color: #e53e3e;
+  background-color: #fff5f5;
+  border: 1px solid #fc8181;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  font-size: 0.9rem;
+}
+
+.address-form {
+  width: 100%;
+}
+
+.address-form fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.address-form-row {
+  margin-bottom: 1.5rem;
+}
+
+.address-form-row:last-child {
+  margin-bottom: 0;
+}
+
+.address-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #4a5568;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.address-form .pure-input-1 {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  background-color: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.address-form .pure-input-1:focus {
+  outline: none;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+
+.address-form .pure-input-1::placeholder {
+  color: #a0aec0;
+}
+
+.address-form select.pure-input-1 {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+.default-address-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  color: #4a5568;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.default-address-checkbox input[type="checkbox"] {
+  margin: 0;
+  width: auto;
+  height: auto;
+}
+
+.address-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.form-cancel-btn {
+  background-color: #f7fafc;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.form-cancel-btn:hover {
+  background-color: #edf2f7;
+}
+
+.form-submit-btn {
+  border-radius: 6px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.form-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Pure.css Grid 兼容性增强 */
+.pure-g [class*="pure-u"] {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.pure-g [class*="pure-u"]:first-child {
+  padding-left: 0;
+}
+
+.pure-g [class*="pure-u"]:last-child {
+  padding-right: 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .address-edit-page {
+    padding: 1rem 0.5rem;
+  }
+  
+  .page-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+  }
+  
+  .address-form-card {
+    padding: 1.5rem;
+  }
+  
+  .address-form-row {
+    margin-bottom: 1rem;
+  }
+  
+  .address-form .pure-input-1 {
+    padding: 0.65rem;
+    font-size: 0.85rem;
+  }
+  
+  .address-form-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .form-cancel-btn, .form-submit-btn {
+    width: 100%;
+    padding: 0.75rem;
+  }
+  
+  .pure-g [class*="pure-u"] {
+    padding-left: 0;
+    padding-right: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .pure-g [class*="pure-u"]:last-child {
+    margin-bottom: 0;
+  }
+}
+</style>

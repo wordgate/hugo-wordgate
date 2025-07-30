@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.LanguageCode | default "zh-cn" }}">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
+  {{ partial "wordgate-head" . }}
+</head>
+<body>
+  <!-- 支付页面内容 -->
+  <div class="page-content">
+    <div class="pure-g">
+      <div class="pure-u-1">
+        <div class="container">
+          {{ .Content }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+</html>

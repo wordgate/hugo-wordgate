@@ -1,0 +1,236 @@
+{{/* WordGate用户地址列表短代码 */}}
+{{/*
+使用方式:
+{{< wordgate-user-address-list >}}
+
+此短代码用于用户地址管理页面，提供完整的地址CRUD功能
+*/}}
+
+<div class="wordgate-container user-address-page">
+  <div class="page-header">
+    <h1 class="page-title">{{ i18n "manage_addresses" | default "管理收货地址" }}</h1>
+    <p class="page-description">{{ i18n "manage_addresses_desc" | default "添加、编辑和管理您的收货地址" }}</p>
+  </div>
+  
+  <div class="address-management-container">
+    {{ partial "wordgate-address-list.html" (dict "mode" "manage") }}
+  </div>
+  
+  <!-- 帮助信息 -->
+  <div class="address-help-section">
+    <div class="help-card">
+      <h3>{{ i18n "address_help_title" | default "地址管理提示" }}</h3>
+      <ul class="help-list">
+        <li>{{ i18n "address_help_1" | default "您可以添加多个收货地址，方便不同场景使用" }}</li>
+        <li>{{ i18n "address_help_2" | default "设置默认地址后，购物时会自动选择该地址" }}</li>
+        <li>{{ i18n "address_help_3" | default "请确保地址信息准确，以便商品能正确送达" }}</li>
+        <li>{{ i18n "address_help_4" | default "您可以为地址添加标签（如家、公司）便于识别" }}</li>
+      </ul>
+    </div>
+  </div>
+  
+  <!-- 快捷操作 -->
+  <div class="quick-actions">
+    <div class="pure-g">
+      <div class="pure-u-1 pure-u-md-1-2">
+        <div class="action-card">
+          <h4>{{ i18n "view_orders" | default "查看订单" }}</h4>
+          <p>{{ i18n "view_orders_desc" | default "查看使用这些地址的历史订单" }}</p>
+          <a href="/orders/" class="pure-button">{{ i18n "go_to_orders" | default "查看订单" }}</a>
+        </div>
+      </div>
+      <div class="pure-u-1 pure-u-md-1-2">
+        <div class="action-card">
+          <h4>{{ i18n "back_to_profile" | default "返回个人中心" }}</h4>
+          <p>{{ i18n "back_to_profile_desc" | default "管理个人信息和其他设置" }}</p>
+          <a href="/profile/" class="pure-button">{{ i18n "back_to_profile" | default "个人中心" }}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* 用户地址页面样式 */
+.user-address-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.page-title {
+  margin: 0 0 1rem;
+  color: #2d3748;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.page-description {
+  margin: 0;
+  color: #718096;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.address-management-container {
+  margin-bottom: 3rem;
+}
+
+/* 帮助信息区域 */
+.address-help-section {
+  margin: 3rem 0;
+}
+
+.help-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.help-card h3 {
+  margin: 0 0 1.5rem;
+  color: #2d3748;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.help-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #4a5568;
+}
+
+.help-list li {
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+}
+
+.help-list li:last-child {
+  margin-bottom: 0;
+}
+
+/* 快捷操作区域 */
+.quick-actions {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.action-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.action-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.action-card h4 {
+  margin: 0 0 1rem;
+  color: #2d3748;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.action-card p {
+  margin: 0 0 1.5rem;
+  color: #718096;
+  line-height: 1.5;
+}
+
+.action-card .pure-button {
+  background-color: #f7fafc;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.action-card .pure-button:hover {
+  background-color: #edf2f7;
+  border-color: #cbd5e0;
+  color: #2d3748;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .user-address-page {
+    padding: 1rem 0.5rem;
+  }
+  
+  .page-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+  }
+  
+  .page-description {
+    font-size: 1rem;
+  }
+  
+  .help-card {
+    padding: 1.5rem;
+  }
+  
+  .help-card h3 {
+    font-size: 1.1rem;
+  }
+  
+  .action-card {
+    padding: 1.5rem;
+  }
+  
+  .action-card h4 {
+    font-size: 1rem;
+  }
+  
+  .quick-actions {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+  }
+}
+
+/* 纯CSS网格兼容性 */
+.pure-g [class*="pure-u"] {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.pure-g [class*="pure-u"]:first-child {
+  padding-left: 0;
+}
+
+.pure-g [class*="pure-u"]:last-child {
+  padding-right: 0;
+}
+
+@media (max-width: 768px) {
+  .pure-g [class*="pure-u"] {
+    padding-left: 0;
+    padding-right: 0;
+    margin-bottom: 1rem;
+  }
+  
+  .pure-g [class*="pure-u"]:last-child {
+    margin-bottom: 0;
+  }
+}
+</style>

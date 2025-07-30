@@ -1,0 +1,54 @@
+{{- /* WordGate自动注入资源 - 由钩子自动加载 */ -}}
+
+  {{- $base_url := site.Params.wordgate.base_url | default "" -}}
+  {{- $app_code := site.Params.wordgate.app_code | default "" -}}
+  {{- $enable_payment := site.Params.wordgate.enable_payment | default false -}}
+
+  <!-- WordGate CSS 资源 -->
+  {{- $pureCss := resources.Get "css/pure-min.css" -}}
+  {{- $pureGridsCss := resources.Get "css/pure-grids-responsive-min.css" -}}
+  {{- $wordgateCss := resources.Get "css/wordgate.css" -}}
+  
+  {{- $allCSS := slice $pureCss $pureGridsCss $wordgateCss | resources.Concat "css/wordgate-bundle.css" -}}
+  
+  {{- if hugo.IsProduction -}}
+    {{- $allCSS = $allCSS | resources.Minify | resources.Fingerprint "sha512" -}}
+  {{- else -}}
+    {{- $allCSS = $allCSS | resources.Fingerprint "sha512" -}}
+  {{- end -}}
+  
+  <link rel="stylesheet" href="{{ $allCSS.RelPermalink }}" integrity="{{ $allCSS.Data.Integrity }}" crossorigin="anonymous">
+
+  <!-- WordGate JavaScript 库 -->
+  {{- $alpineJs := resources.Get "js/alpine.min.js" -}}
+  {{- $alpineMoneyJs := resources.Get "js/alpine-money.min.js" -}}
+  {{- $qriousJs := resources.Get "js/qrious.min.js" -}}
+  {{- $wordgateSdkJs := resources.Get "js/wordgate.sdk.js" -}}
+  
+  {{- $alpineBundle := slice $alpineJs $alpineMoneyJs $qriousJs | resources.Concat "js/bundle.js" -}}
+  
+  {{- if hugo.IsProduction -}}
+    {{- $alpineBundle = $alpineBundle | resources.Minify | resources.Fingerprint "sha512" -}}
+  {{- else -}}
+    {{- $alpineBundle = $alpineBundle | resources.Fingerprint "sha512" -}}
+  {{- end -}}
+  
+  <script src="{{ $alpineBundle.RelPermalink }}" integrity="{{ $alpineBundle.Data.Integrity }}" crossorigin="anonymous" defer></script>
+
+  <!-- WordGate 配置 -->
+  <script>
+  window.wordgate_config = {
+    "base_url": "{{ $base_url }}",
+    "app_code": "{{ $app_code }}",
+    "enable_payment": {{ if $enable_payment }}true{{ else }}false{{ end }}
+  };
+  </script>
+
+  <!-- WordGate SDK 单独处理以确保正确依赖顺序 -->
+  {{- if hugo.IsProduction -}}
+    {{- $wordgateSdkJs = $wordgateSdkJs | resources.Minify | resources.Fingerprint "sha512" -}}
+  {{- else -}}
+    {{- $wordgateSdkJs = $wordgateSdkJs | resources.Fingerprint "sha512" -}}
+  {{- end -}}
+  
+  <script src="{{ $wordgateSdkJs.RelPermalink }}" integrity="{{ $wordgateSdkJs.Data.Integrity }}" crossorigin="anonymous"></script>

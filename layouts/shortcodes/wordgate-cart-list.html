@@ -1,0 +1,427 @@
+{{/* WordGate购物车列表短代码 */}}
+
+<div id="wg-cart-list" 
+     x-data="cartListComponent()"
+     x-init="init()"
+     x-cloak>
+     
+  <div class="wordgate-container wordgate-cart-container">
+    <!-- 加载中状态 -->
+    <div class="cart-loading" x-show="loading">
+      <div class="spinner"></div>
+    </div>
+    
+    <!-- 购物车为空 -->
+    <div class="cart-empty" x-show="!loading && items.length === 0">
+      <p>{{ i18n "cart_empty" | default "购物车是空的" }}</p>
+      <a href="/" class="pure-button pure-button-primary">{{ i18n "browse_courses" | default "返回首页" }}</a>
+    </div>
+    
+    <!-- 购物车内容 -->
+    <div class="cart-items" x-show="!loading && !error && items.length > 0">
+      <div class="cart-items-list">
+        <template x-for="item in items" :key="item.code">
+          <div class="cart-item">
+            <div class="cart-item-image">
+              <img x-bind:src="item.image || '/images/placeholder.png'" x-bind:alt="item.title">
+            </div>
+            <div class="cart-item-info">
+              <h3 class="cart-item-title" x-text="item.title"></h3>
+              <div class="cart-item-price" :class="'money-usd'" x-text="formatPrice(item.price)"></div>
+              <div class="cart-item-address-note" x-show="item.require_address">
+                <small class="address-required">🏠 需要收货地址</small>
+              </div>
+            </div>
+            <div class="cart-item-quantity">
+              <button class="quantity-btn" x-on:click="updateQuantity(item.code, Math.max(1, item.quantity - 1))">-</button>
+              <input type="number" x-model.number="item.quantity" min="1" x-on:change="updateQuantity(item.code, item.quantity)">
+              <button class="quantity-btn" x-on:click="updateQuantity(item.code, item.quantity + 1)">+</button>
+            </div>
+            <div class="cart-item-subtotal" :class="'money-usd'" x-text="formatPrice(item.price * item.quantity)"></div>
+            <button class="cart-item-remove" x-on:click="removeItem(item.code)">&times;</button>
+          </div>
+        </template>
+      </div>
+      
+      <!-- 地址选择区域 -->
+      <div class="address-selection" x-show="requireAddress">
+        {{ partial "wordgate-address-list.html" (dict "mode" "select" "required" true) }}
+      </div>
+      
+      <!-- 订单错误信息 -->
+      <div class="cart-error" x-show="orderError" x-text="orderError"></div>
+      
+      <!-- 购物车汇总 -->
+      <div class="cart-summary">
+        <div class="summary-row">
+          <span>{{ i18n "subtotal" | default "小计" }}:</span>
+          <span :class="'money-usd'" x-text="formatPrice(totalPrice)"></span>
+        </div>
+        <div class="summary-row total">
+          <span>{{ i18n "total" | default "总计" }}:</span>
+          <span :class="'money-usd'" x-text="formatPrice(totalPrice)"></span>
+        </div>
+        <div class="cart-actions">
+          <button class="pure-button" x-on:click="clearCart" :disabled="isCreatingOrder">
+            {{ i18n "clear_cart" | default "清空购物车" }}
+          </button>
+          <button class="pure-button pure-button-primary" x-on:click="checkout" :disabled="isCreatingOrder || (requireAddress && !selectedAddressId)">
+            <span x-show="!isCreatingOrder">{{ i18n "checkout" | default "结算" }}</span>
+            <span x-show="isCreatingOrder">处理中...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 购物车错误信息 -->
+    <div class="cart-error" x-show="error" x-text="error"></div>
+    
+    <!-- 登录模态框 -->
+    <div class="wordgate-modal" x-ref="loginModal" style="display: none;">
+      <div class="wordgate-modal-content">
+        <span class="wordgate-close" x-on:click="closeModal('loginModal')">&times;</span>
+        <h2>{{ i18n "login_required" | default "请先登录" }}</h2>
+        <p>{{ i18n "login_to_checkout" | default "您需要先登录才能完成购买。" }}</p>
+        <button class="pure-button pure-button-primary" x-on:click="goToLogin">{{ i18n "login" | default "登录" }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 购物车列表组件
+  window.cartListComponent = function() {
+    return {
+      items: [],
+      loading: false,
+      error: null,
+      totalPrice: 0,
+      isCreatingOrder: false,
+      orderError: null,
+      selectedAddressId: null,
+      requireAddress: false,
+      selectedAddress: null,
+      
+      init() {
+        // 初始化清理函数数组
+        this.cleanupFunctions = [];
+        
+        this.items = $wg.cart.getItems();
+        this.calculateTotal();
+        this.checkRequireAddress();
+        
+        // 监听购物车变化
+        const cartUnsubscribe = $wg.cart.onChanged((items) => {
+          this.items = items;
+          this.calculateTotal();
+          this.checkRequireAddress();
+        });
+        this.cleanupFunctions.push(cartUnsubscribe);
+        
+        // 监听地址选择器变化
+        const addressPickerUnsubscribe = $wg.address_picker.onChanged((address) => {
+          this.selectedAddress = address;
+          this.selectedAddressId = address ? address.id : null;
+          console.log('[Cart] 地址选择变化:', address);
+        });
+        this.cleanupFunctions.push(addressPickerUnsubscribe);
+        
+        // 页面卸载时清理
+        const handleBeforeUnload = () => {
+          this.cleanup();
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        this.cleanupFunctions.push(() => {
+          window.removeEventListener('beforeunload', handleBeforeUnload);
+        });
+      },
+      
+      cleanup() {
+        // 清理所有监听器
+        if (this.cleanupFunctions) {
+          this.cleanupFunctions.forEach(cleanup => {
+            if (typeof cleanup === 'function') {
+              cleanup();
+            }
+          });
+          this.cleanupFunctions = [];
+        }
+      },
+      
+      checkRequireAddress() {
+        this.requireAddress = this.items.some(item => item.require_address);
+      },
+      
+      removeItem(itemCode) {
+        $wg.cart.removeItem(itemCode);
+      },
+      
+      updateQuantity(itemCode, quantity) {
+        $wg.cart.updateQuantity(itemCode, parseInt(quantity));
+      },
+      
+      calculateTotal() {
+        this.totalPrice = $wg.cart.getTotalPrice();
+      },
+      
+      clearCart() {
+        $wg.cart.clear();
+      },
+
+      async checkout() {
+        if (!$wg.auth.isLoggedIn()) {
+          window.location.href = '/login?redirect=/cart/';
+          return;
+        }
+        
+        // 检查是否需要地址但未选择
+        if (this.requireAddress && !this.selectedAddressId) {
+          this.orderError = '请选择收货地址';
+          return;
+        }
+        
+        try {
+          this.isCreatingOrder = true;
+          this.orderError = null;
+          
+          // 格式化购物车商品为API需要的格式
+          const formattedItems = this.items.map(item => ({
+            item_code: item.code,
+            quantity: item.quantity,
+            item_type: item.item_type || undefined // 可选字段，不存在时不传递
+          }));
+          
+          // 创建订单
+          const orderData = {
+            items: formattedItems
+          };
+          
+          // 如果需要地址，添加地址ID
+          if (this.requireAddress && this.selectedAddressId) {
+            orderData.address_id = this.selectedAddressId;
+          }
+          
+          const {data} = await $wg.with('orders').create(orderData);
+          
+          // 清空购物车
+          $wg.cart.clear();
+          
+          // 跳转到支付页面
+          if (data && data.pay_url) {
+            window.location.href = data.pay_url;
+          } else {
+            this.orderError = '创建订单成功但获取支付链接失败';
+          }
+        } catch (error) {
+          console.error('[Cart] 创建订单失败:', error);
+          
+          // 处理特定错误
+          if (error.code === 401) {
+            // 登录状态失效，SDK会自动清除token
+            window.location.href = '/login?redirect=/cart/';
+          } else if (error.code === 422) {
+            this.orderError = error.message || '订单数据不正确';
+          } else {
+            this.orderError = error.message || '创建订单失败';
+          }
+          this.isCreatingOrder = false;
+        }
+      },
+      
+      formatPrice(price) {
+        return $wg.helper.formatMoney(price, 'USD');
+      },
+      
+      closeModal(modalId) {
+        this.$refs[modalId].style.display = 'none';
+      },
+      
+      goToLogin() {
+        window.location.href = '/login/?redirect=' + encodeURIComponent(window.location.pathname);
+      },
+      
+      goToProfile() {
+        window.location.href = '/profile/';
+      }
+    };
+  };
+</script>
+
+<style>
+  
+  .cart-loading, .cart-empty, .cart-error {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+  }
+  
+  .cart-error, .address-error {
+    color: #e53e3e;
+    background-color: #fff5f5;
+    border: 1px solid #fc8181;
+    border-radius: 4px;
+    margin: 1rem 0;
+    padding: 1rem;
+  }
+  
+  .spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    margin: 0 auto;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .cart-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid #eee;
+    border-radius: 4px;
+  }
+  
+  .cart-item-image {
+    width: 80px;
+    height: 80px;
+    overflow: hidden;
+    margin-right: 1rem;
+  }
+  
+  .cart-item-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .cart-item-info {
+    flex: 1;
+  }
+  
+  .cart-item-title {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
+  
+  .cart-item-price {
+    color: #666;
+    margin-bottom: 0.25rem;
+  }
+  
+  .address-required {
+    color: #f6ad55;
+    font-style: italic;
+  }
+  
+  .cart-item-quantity {
+    display: flex;
+    align-items: center;
+    margin: 0 1rem;
+  }
+  
+  .cart-item-quantity input {
+    width: 40px;
+    text-align: center;
+    border: 1px solid #ddd;
+    border-radius: 0;
+    margin: 0 5px;
+    padding: 5px;
+  }
+  
+  .quantity-btn {
+    border: 1px solid #ddd;
+    background: #f8f8f8;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  
+  .cart-item-subtotal {
+    font-weight: bold;
+    margin-right: 1rem;
+    min-width: 80px;
+    text-align: right;
+  }
+  
+  .cart-item-remove {
+    border: none;
+    background: none;
+    font-size: 1.5rem;
+    color: #999;
+    cursor: pointer;
+  }
+  
+  .cart-summary {
+    padding: 1rem;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    margin-top: 1rem;
+  }
+  
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  
+  .summary-row.total {
+    font-weight: bold;
+    font-size: 1.2rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+  }
+  
+  .cart-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1rem;
+  }
+  
+  /* 地址选择容器样式 */
+  .address-selection {
+    margin: 2rem 0;
+  }
+  
+  .wordgate-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+  
+  .wordgate-modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 2rem;
+    border-radius: 4px;
+    max-width: 500px;
+    position: relative;
+  }
+  
+  .wordgate-close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+  
+  [x-cloak] {
+    display: none !important;
+  }
+</style>

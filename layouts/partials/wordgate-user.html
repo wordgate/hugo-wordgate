@@ -1,0 +1,218 @@
+{{/* WordGate用户状态显示 */}}
+
+<div id="wg-user-status" x-data="{
+        user: null,
+        isLoggedIn: false,
+        dropdownOpen: false,
+
+        init() {
+          // 检查登录状态
+          this.checkLoginStatus();
+          // 设置事件监听
+          $wg.auth.onChanged(loggedIn => {
+            this.checkLoginStatus();
+          });
+        },
+        
+        checkLoginStatus() {
+          this.isLoggedIn = $wg.auth.isLoggedIn();
+          this.user = $wg.user.getProfile();
+        },
+        
+        toggleDropdown() {
+          console.log('toggleDropdown', this.dropdownOpen);
+          this.dropdownOpen = !this.dropdownOpen;
+        },
+        
+        logout() {
+          $wg.auth.logout();
+          window.location.href = '/';
+        }
+     }" x-init="init()" class="wordgate-user-status">
+
+  <!-- 已登录状态 -->
+  <div x-show="isLoggedIn" class="wordgate-logged-in">
+    <!-- 将用户信息和下拉菜单整合到Pure Menu结构中 -->
+    <div class="pure-menu pure-menu-horizontal">
+      <ul class="pure-menu-list">
+        <li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
+          <a href="javascript:void(0);" @click="toggleDropdown()" class="pure-menu-link wordgate-user-info">
+            <div class="wordgate-user-avatar">
+              <img x-show="user && user.avatar" :src="user?.avatar || ''"
+                :alt="user ? (user.name || user.email || '用户') : '用户'">
+              <span x-show="!user || !user.avatar">{{ i18n "user_icon" | default "用" }}</span>
+            </div>
+            <div class="wordgate-user-name" x-text="user ? (user.name || user.email || '用户') : '用户'"></div>
+          </a>
+          <!-- Pure CSS下拉菜单 -->
+          <ul class="pure-menu-children">
+            <li class="pure-menu-item">
+              <a href="/orders/" class="pure-menu-link">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                {{ i18n "my_orders" | default "我的订单" }}
+              </a>
+            </li>
+            <li class="pure-menu-item">
+              <a href="/addresses/" class="pure-menu-link">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                {{ i18n "my_addresses" | default "我的地址" }}
+              </a>
+            </li>
+            <li class="pure-menu-item">
+              <a href="/change-password/" class="pure-menu-link">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                {{ i18n "change_password" | default "修改密码" }}
+              </a>
+            </li>
+            <li class="pure-menu-item logout-item">
+              <a href="javascript:void(0);" @click="logout()" class="pure-menu-link">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                {{ i18n "logout" | default "退出" }}
+              </a>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 未登录状态 -->
+  <div x-show="!isLoggedIn" class="wordgate-user-actions">
+    <a href="{{ .loginUrl | default " /login" }}" class="pure-button pure-button-primary">
+      {{ i18n "login_register" | default "登录/注册" }}
+    </a>
+  </div>
+</div>
+
+<style>
+  .wordgate-user-status {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .wordgate-logged-in {
+    display: flex;
+    align-items: center;
+  }
+
+  .wordgate-user-info {
+    display: flex !important;
+    align-items: center;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    text-decoration: none;
+  }
+
+  .wordgate-user-info:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .wordgate-user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+    overflow: hidden;
+    border: 2px solid #f9f9f9;
+  }
+
+  .wordgate-user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .wordgate-user-avatar span {
+    font-size: 1rem;
+    font-weight: bold;
+  }
+
+  .wordgate-user-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+  }
+
+  /* 自定义Pure CSS菜单样式 */
+  .pure-menu-children {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    min-width: 220px;
+  }
+  
+  /* 彻底移除所有可能导致小点的样式 */
+  .pure-menu-list,
+  .pure-menu-children,
+  .pure-menu-item,
+  .pure-menu-link {
+    list-style: none !important;
+    list-style-type: none !important;
+    list-style-image: none !important;
+  }
+  
+  /* 检查伪元素 */
+  .pure-menu-item::before,
+  .pure-menu-item::after,
+  .pure-menu-link::before,
+  .pure-menu-link::after {
+    display: none !important;
+    content: none !important;
+  }
+  
+  /* 定制图标样式 */
+  .pure-menu-children .pure-menu-link {
+    display: flex;
+    align-items: center;
+  }
+  
+  .pure-menu-children .pure-menu-link svg {
+    margin-right: 10px;
+    color: #666;
+  }
+  
+  /* 退出按钮样式 */
+  .logout-item .pure-menu-link {
+    color: #e74c3c;
+  }
+  
+  .logout-item .pure-menu-link svg {
+    color: #e74c3c;
+  }
+  
+  .logout-item .pure-menu-link:hover {
+    background-color: #fee;
+  }
+
+  .wordgate-user-actions {
+    display: flex;
+    align-items: center;
+  }
+</style>

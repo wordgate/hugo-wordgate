@@ -1,0 +1,371 @@
+{{/* WordGate订单列表短代码 - 使用Pure.css重新设计 */}}
+
+<div id="wg-order-list" 
+     x-data="{
+        orders: [],
+        loading: true,
+        error: null,
+        
+        async loadOrders() {
+          if (!$wg.auth.isLoggedIn()) {
+            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+            return;
+          }
+
+          try {
+            this.loading = true;
+            this.error = null;
+
+            const {data} = await $wg.with('orders').list();
+            this.orders = data?.items || [];
+          } catch (err) {
+            this.error = err.message || '加载订单失败';
+            if (err.code === 401) {
+              // 未登录或 token 失效
+              $wg.auth.logout();
+              window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        getStatusText(status) {
+          const statusMap = {
+            paid: '已支付',
+            pending: '待支付',
+          };
+          return statusMap[status] || status;
+        },
+
+        getStatusClass(status) {
+          const statusClassMap = {
+            paid: 'wg-status-paid',
+            pending: 'wg-status-pending',
+          };
+          return statusClassMap[status] || '';
+        },
+        
+        goToPay(order) {
+          window.location.href = order.pay_url;
+        }
+     }"
+     x-init="loadOrders()"
+     @wordgate:auth:changed.window="loadOrders()"
+     x-cloak>
+  
+  <!-- 加载中状态 -->
+  <div x-show="loading" class="wg-loading pure-g">
+    <div class="pure-u-1 wg-loading-indicator">
+      <div class="wg-spinner"></div>
+      <p>加载中...</p>
+    </div>
+  </div>
+
+  <!-- 错误状态 -->
+  <div x-show="error" class="wg-error pure-g">
+    <div class="pure-u-1">
+      <div class="wg-error-message">
+        <i class="wg-icon-error"></i>
+        <p x-text="error"></p>
+        <button @click="loadOrders()" class="pure-button wg-button-retry">重试</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 空订单状态 -->
+  <div x-show="!loading && !error && orders.length === 0" class="wg-empty pure-g">
+    <div class="pure-u-1">
+      <div class="wg-empty-message">
+        <i class="wg-icon-empty"></i>
+        <p>暂无订单</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 订单列表 -->
+  <div x-show="!loading && !error && orders.length > 0" class="wg-orders pure-g">
+    <template x-for="order in orders" :key="order?.order_no || index">
+      <div class="pure-u-1 wg-order-card-container">
+        <div class="wg-order-card">
+          <!-- 订单头部 -->
+          <div class="wg-order-header pure-g">
+            <div class="pure-u-1-2">
+              <div class="wg-order-no" x-text="'订单号: ' + (order?.order_no || '-')"></div>
+            </div>
+            <div class="pure-u-1-2 wg-text-right">
+              <span class="wg-order-status" 
+                    x-text="getStatusText(order?.is_paid ? 'paid' : 'pending')"
+                    :class="getStatusClass(order?.is_paid ? 'paid' : 'pending')"></span>
+            </div>
+            <div class="pure-u-1">
+              <div class="wg-order-date" x-text="'下单时间: ' + $wg.helper.formatDate(order?.created_at)"></div>
+            </div>
+          </div>
+          
+          <!-- 订单商品 -->
+          <div class="wg-order-items">
+            <table class="pure-table pure-table-bordered wg-items-table">
+              <thead>
+                <tr>
+                  <th>商品名称</th>
+                  <th class="wg-text-center">类型</th>
+                  <th class="wg-text-center">数量</th>
+                  <th class="wg-text-right">单价</th>
+                  <th class="wg-text-right">小计</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="item in order?.items || []" :key="item?.item_id || index">
+                  <tr>
+                    <td class="wg-item-name" x-text="item?.item_name || '-'"></td>
+                    <td class="wg-text-center" x-text="item?.item_type || '-'"></td>
+                    <td class="wg-text-center" x-text="item?.quantity || 0"></td>
+                    <td class="wg-text-right">
+                      <span :class="'money-' + (order?.currency || 'cny').toLowerCase()" 
+                            x-text="$wg.helper.formatMoney(item?.unit_price || 0, order?.currency)"></span>
+                    </td>
+                    <td class="wg-text-right">
+                      <span :class="'money-' + (order?.currency || 'cny').toLowerCase()" 
+                            x-text="$wg.helper.formatMoney(item?.subtotal || 0, order?.currency)"></span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- 订单底部 -->
+          <div class="wg-order-footer pure-g">
+            <div class="pure-u-1-2">
+              <div class="wg-order-total">
+                总金额: 
+                <span :class="'money-' + (order?.currency || 'cny').toLowerCase()" 
+                      x-text="$wg.helper.formatMoney(order?.amount || 0, order?.currency)"></span>
+              </div>
+              <div class="wg-order-discount" x-show="order?.discount_amount > 0">
+                优惠: 
+                <span :class="'money-' + (order?.currency || 'cny').toLowerCase()" 
+                      x-text="$wg.helper.formatMoney(order?.discount_amount || 0, order?.currency)"></span>
+              </div>
+            </div>
+            <div class="pure-u-1-2 wg-text-right">
+              <button x-show="!order?.is_paid" 
+                      @click="goToPay(order)" 
+                      class="pure-button pure-button-primary wg-button-pay">
+                去支付
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<style>
+  /* 通用样式 */
+  #wg-order-list {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #333;
+  }
+  
+  .wg-text-right {
+    text-align: right;
+  }
+  
+  .wg-text-center {
+    text-align: center;
+  }
+  
+  [x-cloak] {
+    display: none !important;
+  }
+  
+  /* 加载状态 */
+  .wg-loading-indicator {
+    text-align: center;
+    padding: 2rem;
+  }
+  
+  .wg-spinner {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: #3b82f6;
+    animation: wg-spin 1s ease-in-out infinite;
+    margin-bottom: 0.5rem;
+  }
+  
+  @keyframes wg-spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* 错误状态 */
+  .wg-error-message {
+    background-color: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 4px;
+    padding: 1rem;
+    text-align: center;
+    margin: 1rem 0;
+  }
+  
+  .wg-icon-error {
+    display: block;
+    margin: 0 auto 0.5rem;
+    width: 24px;
+    height: 24px;
+    background-color: #ef4444;
+    border-radius: 50%;
+  }
+  
+  .wg-button-retry {
+    margin-top: 0.5rem;
+    background-color: #f3f4f6;
+    color: #4b5563;
+  }
+  
+  /* 空状态 */
+  .wg-empty-message {
+    background-color: #f9fafb;
+    border: 1px solid #f3f4f6;
+    border-radius: 4px;
+    padding: 2rem;
+    text-align: center;
+    margin: 1rem 0;
+  }
+  
+  .wg-icon-empty {
+    display: block;
+    margin: 0 auto 0.5rem;
+    width: 48px;
+    height: 48px;
+    background-color: #e5e7eb;
+    border-radius: 50%;
+  }
+  
+  /* 订单卡片 */
+  .wg-order-card-container {
+    padding: 0.5rem;
+  }
+  
+  .wg-order-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  
+  .wg-order-header {
+    padding: 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    background-color: #f9fafb;
+  }
+  
+  .wg-order-no {
+    font-weight: 500;
+    font-size: 1rem;
+  }
+  
+  .wg-order-date {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+  }
+  
+  .wg-order-status {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  
+  .wg-status-pending {
+    background-color: #fef3c7;
+    color: #d97706;
+  }
+  
+  .wg-status-paid {
+    background-color: #d1fae5;
+    color: #059669;
+  }
+  
+  /* 订单商品表格 */
+  .wg-order-items {
+    padding: 1rem;
+  }
+  
+  .wg-items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  
+  .wg-items-table th {
+    background-color: #f9fafb;
+    font-weight: 500;
+  }
+  
+  .wg-item-name {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  /* 订单底部 */
+  .wg-order-footer {
+    padding: 1rem;
+    border-top: 1px solid #f3f4f6;
+    background-color: #f9fafb;
+  }
+  
+  .wg-order-total {
+    font-weight: 500;
+    font-size: 1rem;
+  }
+  
+  .wg-order-discount {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+  }
+  
+  .wg-button-pay {
+    background-color: #3b82f6;
+    color: white;
+  }
+  
+  .wg-button-pay:hover {
+    background-color: #2563eb;
+  }
+  
+  /* 响应式调整 */
+  @media screen and (max-width: 48em) {
+    .wg-items-table {
+      font-size: 0.75rem;
+    }
+    
+    .wg-order-header .pure-u-1-2,
+    .wg-order-footer .pure-u-1-2 {
+      width: 100%;
+      text-align: left;
+    }
+    
+    .wg-order-status {
+      display: inline-block;
+      margin-top: 0.5rem;
+    }
+    
+    .wg-button-pay {
+      margin-top: 1rem;
+      width: 100%;
+    }
+  }
+</style>

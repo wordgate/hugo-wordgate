@@ -1,0 +1,85 @@
+{{/* WordGate授权检查短代码 - 用于在页面中检查用户是否已登录，未登录时显示指定内容或重定向 */}}
+
+{{ $loginUrl := .Get "login_url" | default "/login" }}
+{{ $redirect := .Get "redirect" | default false }}
+{{ $message := .Get "message" | default (i18n "login_required" | default "请登录以访问此内容") }}
+
+<div class="wordgate-auth-required" 
+     x-data="{ 
+        isLoggedIn: false,
+        loginUrl: '{{ $loginUrl }}',
+        shouldRedirect: {{ $redirect }},
+        
+        init() {
+          // 检查登录状态
+          this.checkLoginStatus();
+          
+          // 监听状态变化
+          $wg.auth.onChanged(loggedIn => {
+            this.checkLoginStatus();
+          });
+        },
+        
+        checkLoginStatus() {
+          this.isLoggedIn = $wg.auth.isLoggedIn();
+          if (!this.isLoggedIn && this.shouldRedirect) {
+            window.location.href = this.loginUrl;
+          }
+        }
+     }"
+     x-init="init()">
+  
+  <!-- 未登录状态显示 -->
+  <div class="wordgate-not-authed" x-show="!isLoggedIn" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+    <div class="wordgate-auth-message">{{ $message }}</div>
+    <div class="wordgate-auth-login-btn">
+      <a href="{{ $loginUrl }}" class="pure-button pure-button-primary">{{ i18n "login" | default "登录" }}</a>
+    </div>
+  </div>
+  
+  <!-- 已登录状态显示内容 -->
+  <div class="wordgate-authed" x-show="isLoggedIn" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-cloak>
+    {{ .Inner }}
+  </div>
+</div>
+
+<style>
+  /* 确保初始状态下不会闪烁 */
+  [x-cloak] { display: none !important; }
+  
+  .wordgate-auth-required {
+    margin: 1rem 0;
+  }
+  
+  .wordgate-not-authed {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 1.5rem;
+    text-align: center;
+  }
+  
+  .wordgate-auth-message {
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    color: #495057;
+  }
+  
+  /* 简单过渡动画 */
+  .transition {
+    transition-property: opacity;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .duration-200 {
+    transition-duration: 200ms;
+  }
+  
+  .opacity-0 {
+    opacity: 0;
+  }
+  
+  .opacity-100 {
+    opacity: 1;
+  }
+</style>

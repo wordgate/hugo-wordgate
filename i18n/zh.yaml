@@ -1,0 +1,201 @@
+# WordGate 中文翻译
+login_title:
+  other: "用户登录"
+password_login:
+  other: "密码登录"
+code_login:
+  other: "验证码登录"
+username:
+  other: "用户名/邮箱"
+password:
+  other: "密码"
+login:
+  other: "登录"
+email:
+  other: "邮箱"
+send_code:
+  other: "发送验证码"
+verification_code:
+  other: "验证码"
+register_title:
+  other: "用户注册"
+register:
+  other: "注册"
+already_have_account:
+  other: "已有账号?"
+go_to_login:
+  other: "去登录"
+login_required:
+  other: "请登录以访问此内容"
+guest:
+  other: "游客"
+user_icon:
+  other: "用"
+logout:
+  other: "退出"
+payment_title:
+  other: "确认支付"
+product:
+  other: "商品"
+amount:
+  other: "金额"
+confirm_payment:
+  other: "确认支付"
+please_pay:
+  other: "请扫码支付"
+qrcode_placeholder:
+  other: "支付二维码"
+order_id_prefix:
+  other: "订单号:"
+order_status_prefix:
+  other: "状态:"
+pending:
+  other: "等待支付"
+payment_success:
+  other: "支付成功!"
+redirect_hint:
+  other: "页面将在3秒后跳转..."
+
+# 地址管理相关翻译
+select_address:
+  other: "选择收货地址"
+manage_addresses:
+  other: "管理收货地址"
+add_new_address:
+  other: "添加新地址"
+edit_address:
+  other: "编辑地址"
+loading_addresses:
+  other: "加载地址中..."
+load_addresses_failed:
+  other: "加载地址失败"
+no_addresses:
+  other: "暂无收货地址"
+add_first_address:
+  other: "添加第一个地址"
+recipient_name:
+  other: "收件人姓名"
+enter_recipient_name:
+  other: "请输入收件人姓名"
+phone_number:
+  other: "联系电话"
+enter_phone_number:
+  other: "请输入联系电话"
+province:
+  other: "省份"
+enter_province:
+  other: "请选择省份"
+city:
+  other: "城市"
+enter_city:
+  other: "请选择城市"
+district:
+  other: "区县"
+enter_district:
+  other: "请选择区县"
+street_address:
+  other: "详细地址"
+enter_street_address:
+  other: "请输入详细地址"
+postal_code:
+  other: "邮政编码"
+enter_postal_code:
+  other: "请输入邮政编码"
+address_label:
+  other: "地址标签"
+home:
+  other: "家"
+company:
+  other: "公司"
+school:
+  other: "学校"
+other:
+  other: "其他"
+set_as_default:
+  other: "设为默认地址"
+set_default:
+  other: "设为默认"
+default:
+  other: "默认"
+edit:
+  other: "编辑"
+delete:
+  other: "删除"
+cancel:
+  other: "取消"
+save_address:
+  other: "保存地址"
+update_address:
+  other: "更新地址"
+saving:
+  other: "保存中..."
+save_address_failed:
+  other: "保存地址失败"
+set_default_failed:
+  other: "设置默认地址失败"
+delete_address_failed:
+  other: "删除地址失败"
+confirm_delete:
+  other: "确认删除"
+delete_address_confirm:
+  other: "确定要删除这个地址吗？此操作不可撤销。"
+deleting:
+  other: "删除中..."
+
+# 购物车相关翻译
+cart_empty:
+  other: "购物车是空的"
+browse_courses:
+  other: "返回首页"
+subtotal:
+  other: "小计"
+total:
+  other: "总计"
+clear_cart:
+  other: "清空购物车"
+checkout:
+  other: "结算"
+login_to_checkout:
+  other: "您需要先登录才能完成购买。"
+
+# 地址管理页面
+manage_addresses_desc:
+  other: "添加、编辑和管理您的收货地址"
+address_help_title:
+  other: "地址管理提示"
+address_help_1:
+  other: "您可以添加多个收货地址，方便不同场景使用"
+address_help_2:
+  other: "设置默认地址后，购物时会自动选择该地址"
+address_help_3:
+  other: "请确保地址信息准确，以便商品能正确送达"
+address_help_4:
+  other: "您可以为地址添加标签（如家、公司）便于识别"
+view_orders:
+  other: "查看订单"
+view_orders_desc:
+  other: "查看使用这些地址的历史订单"
+go_to_orders:
+  other: "查看订单"
+back_to_profile:
+  other: "返回个人中心"
+back_to_profile_desc:
+  other: "管理个人信息和其他设置"
+
+# 表单验证翻译
+recipient_name_required:
+  other: "请输入收件人姓名"
+phone_number_required:
+  other: "请输入联系电话"
+province_required:
+  other: "请选择省份"
+city_required:
+  other: "请选择城市"
+street_address_required:
+  other: "请输入详细地址"
+invalid_phone_number:
+  other: "请输入正确的手机号码"
+
+# 其他错误信息
+invalid_form_data:
+  other: "表单数据不正确" 

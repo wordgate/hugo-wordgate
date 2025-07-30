@@ -1,0 +1,328 @@
+{{/* WordGate 添加到购物车按钮 */}}
+
+{{ $code := .code }}
+{{ $title := .title | default "未命名商品" }}
+{{ $price := .price | default 0 }}
+{{ $image := .image | default "" }}
+{{ $type := .type | default "" }}
+{{ $require_address := .require_address | default false }}
+{{ $allow_multiple := .allow_multiple | default false }}
+{{ $custom_button := .custom_button }}
+{{ $button_text := .button_text | default "加入购物车" }}
+{{ $success_text := .success_text | default "已添加到购物车" }}
+{{ $added_class := .added_class | default "wordgate-added-to-cart" }}
+
+<!-- 隐藏的SVG模板，用于闪现通知 -->
+<div style="display: none;">
+  <svg id="wordgate-success-icon-template" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="wordgate-success-icon">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+</div>
+
+<div class="wordgate-add-to-cart-container"
+     x-data="{
+        itemData: {
+          code: '{{ $code }}',
+          title: '{{ $title }}',
+          price: {{ $price }},
+          image: '{{ $image }}',
+          item_type: '{{ $type }}',
+          require_address: {{ $require_address }}
+        },
+        quantity: 1,
+        isAdding: false,
+        showSuccess: false,
+        successMessage: '{{ $success_text }}',
+        
+        addToCart() {
+          if (!this.itemData.code) {
+            console.error('缺少商品代码');
+            return;
+          }
+          
+          this.isAdding = true;
+          
+          // 构建商品对象
+          const item = {
+            code: this.itemData.code,
+            title: this.itemData.title,
+            price: this.itemData.price,
+            image: this.itemData.image,
+            quantity: this.quantity,
+            item_type: this.itemData.item_type || undefined,
+            require_address: this.itemData.require_address
+          };
+          
+          $wg.cart.addItem(item);
+          this.showAddedSuccess();
+  
+        },
+        
+        decreaseQuantity() {
+          if (this.quantity > 1) {
+            this.quantity--;
+          }
+        },
+        
+        increaseQuantity() {
+          this.quantity++;
+        },
+        
+        showAddedSuccess() {
+          this.isAdding = false;
+          this.showSuccess = true;
+          
+          // 创建并显示右上角闪现通知
+          this.showFlashNotification();
+          
+          // 3秒后隐藏成功状态
+          setTimeout(() => {
+            this.showSuccess = false;
+          }, 3000);
+        },
+        
+        showFlashNotification() {
+          // 创建闪现通知元素
+          const flashNotification = document.createElement('div');
+          flashNotification.className = 'wordgate-flash-notification';
+          
+          // 创建图标+文本容器
+          const contentDiv = document.createElement('div');
+          contentDiv.className = 'wordgate-flash-notification-content';
+          
+          // 使用现有SVG模板而不是动态创建
+          const svgTemplate = document.getElementById('wordgate-success-icon-template');
+          if (svgTemplate) {
+            // 克隆SVG模板
+            const svgEl = svgTemplate.cloneNode(true);
+            contentDiv.appendChild(svgEl);
+          }
+          
+          // 创建文本元素
+          const textSpan = document.createElement('span');
+          textSpan.textContent = this.successMessage;
+          contentDiv.appendChild(textSpan);
+          
+          flashNotification.appendChild(contentDiv);
+          
+          // 添加查看购物车链接
+          const cartLink = document.createElement('a');
+          cartLink.href = '/cart/';
+          cartLink.className = 'wordgate-flash-cart-link';
+          cartLink.textContent = '查看购物车';
+          flashNotification.appendChild(cartLink);
+          
+          // 添加到文档
+          document.body.appendChild(flashNotification);
+          
+          // 添加显示类启动动画
+          setTimeout(() => {
+            flashNotification.classList.add('visible');
+          }, 10);
+          
+          // 3秒后隐藏并移除
+          setTimeout(() => {
+            flashNotification.classList.remove('visible');
+            setTimeout(() => {
+              document.body.removeChild(flashNotification);
+            }, 300); // 等待淡出动画完成
+          }, 3000);
+        }
+     }">
+  
+  {{ if $allow_multiple }}
+  <div class="wordgate-quantity-selector">
+    <button type="button" class="wordgate-quantity-btn" @click="decreaseQuantity" :disabled="quantity <= 1">-</button>
+    <input type="number" min="1" x-model.number="quantity" class="wordgate-quantity-input" />
+    <button type="button" class="wordgate-quantity-btn" @click="increaseQuantity">+</button>
+  </div>
+  {{ end }}
+  
+  {{ if $custom_button }}
+    <div @click="addToCart" :class="{ 'wordgate-adding': isAdding, '{{ $added_class }}': showSuccess }" x-data>
+      {{ $custom_button | safeHTML }}
+    </div>
+  {{ else }}
+    <button type="button" 
+            @click="addToCart" 
+            class="wordgate-add-to-cart-btn" 
+            :class="{ 'wordgate-adding': isAdding, '{{ $added_class }}': showSuccess }"
+            :disabled="isAdding">
+      <span x-show="!isAdding && !showSuccess">{{ $button_text }}</span>
+      <span x-show="isAdding">添加中...</span>
+      <span x-show="!isAdding && showSuccess" x-text="successMessage"></span>
+    </button>
+  {{ end }}
+</div>
+
+<style>
+  .wordgate-add-to-cart-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .wordgate-quantity-selector {
+    display: flex;
+    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  .wordgate-quantity-btn {
+    border: none;
+    background-color: #f1f5f9;
+    color: #334155;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 16px;
+    font-weight: bold;
+  }
+  
+  .wordgate-quantity-btn:hover {
+    background-color: #e2e8f0;
+  }
+  
+  .wordgate-quantity-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .wordgate-quantity-input {
+    border: none;
+    width: 40px;
+    height: 32px;
+    text-align: center;
+    font-size: 14px;
+    -moz-appearance: textfield;
+  }
+  
+  .wordgate-quantity-input::-webkit-outer-spin-button,
+  .wordgate-quantity-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  .wordgate-add-to-cart-btn {
+    display: inline-block;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+  }
+  
+  .wordgate-add-to-cart-btn:hover {
+    background-color: #2563eb;
+  }
+  
+  .wordgate-add-to-cart-btn:active {
+    transform: scale(0.98);
+  }
+  
+  .wordgate-add-to-cart-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  .wordgate-adding {
+    position: relative;
+    pointer-events: none;
+  }
+  
+  .wordgate-added-to-cart {
+    background-color: #10b981;
+  }
+  
+  /* 右上角闪现通知样式 */
+  .wordgate-flash-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: white;
+    border-left: 4px solid #10b981;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 1rem;
+    z-index: 9999;
+    min-width: 250px;
+    max-width: 350px;
+    transform: translateX(120%);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  
+  .wordgate-flash-notification.visible {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  
+  .wordgate-flash-notification-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .wordgate-success-icon {
+    color: #10b981;
+    flex-shrink: 0;
+  }
+  
+  .wordgate-flash-cart-link {
+    display: block;
+    text-align: right;
+    padding-top: 0.25rem;
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 0.875rem;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+  }
+  
+  .wordgate-flash-cart-link:hover {
+    text-decoration: underline;
+  }
+  
+  /* 购物车按钮样式增强 */
+  .course-add-to-cart-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+  
+  .course-add-to-cart-btn:hover {
+    background-color: #2563eb;
+  }
+  
+  .course-add-to-cart-btn:before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='21' r='1'%3E%3C/circle%3E%3Ccircle cx='20' cy='21' r='1'%3E%3C/circle%3E%3Cpath d='M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+</style> 

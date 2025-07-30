@@ -1,0 +1,33 @@
+{{/* WordGate注册表单短代码 */}}
+
+{{ $redirectUrl := .Get "redirect" | default "/" }}
+
+<div class="wordgate-container">
+  <h2 class="wordgate-title">{{ i18n "register_title" | default "用户注册" }}</h2>
+  
+  <form id="wordgate-email-login-form" data-redirect="{{ $redirectUrl }}">
+    <div class="wordgate-form-group">
+      <label for="email" class="wordgate-label">{{ i18n "email" | default "邮箱" }}</label>
+      <div class="wordgate-email-input-container">
+        <input type="email" name="email" class="wordgate-input" required>
+        <button type="button" class="wordgate-send-code-btn">{{ i18n "send_code" | default "发送验证码" }}</button>
+      </div>
+    </div>
+    
+    <div class="wordgate-form-group">
+      <label for="code" class="wordgate-label">{{ i18n "verification_code" | default "验证码" }}</label>
+      <input type="text" name="code" class="wordgate-input" required>
+    </div>
+    
+    <div class="wordgate-error-message"></div>
+    
+    <div class="wordgate-form-group">
+      <button type="submit" class="pure-button pure-button-primary">{{ i18n "register" | default "注册" }}</button>
+    </div>
+    
+    <div class="wordgate-form-group" style="text-align: center;">
+      <span>{{ i18n "already_have_account" | default "已有账号?" }}</span>
+      <a href="{{ .Site.BaseURL }}login">{{ i18n "go_to_login" | default "去登录" }}</a>
+    </div>
+  </form>
+</div> 

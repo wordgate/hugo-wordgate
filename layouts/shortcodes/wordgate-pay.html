@@ -1,0 +1,501 @@
+{{/* WordGate支付页面短代码 - 使用Pure.css重新设计 */}}
+
+<div id="wg-payment" x-data="{
+        orderNo: '',
+        order: null,
+        loading: true,
+        error: null,
+        errorMessage: '',
+        paymentMethod: '', // 选择的支付方式
+        paymentProvider: '', // 选择的支付提供商
+        isProcessingPayment: false, // 是否正在处理支付
+        paymentMethods: [], // 支付方式列表
+        showMorePayments: false, // 是否显示更多支付方式
+        
+        init() {
+          // 从URL获取订单号
+          this.orderNo = $wg.helper.getQueryParam('order_no');
+          
+          if (!this.orderNo) {
+            this.error = '订单号不能为空';
+            this.loading = false;
+            return;
+          }
+          
+          // 加载订单信息和支付方式
+          this.loadOrder();
+          this.loadPaymentMethods();
+        },
+        
+        // 加载支付方式
+        async loadPaymentMethods() {
+          try {
+            const {data} = await $wg.with('payments').methods();
+            if (data && data.items) {
+              this.paymentMethods = data.items;
+            }
+          } catch (err) {
+            console.error('加载支付方式失败:', err);
+            this.errorMessage = '加载支付方式失败';
+          }
+        },
+        
+        async loadOrder() {
+          try {
+            this.loading = true;
+            this.error = null;
+            
+            // 获取订单详情
+            const {data} = await $wg.with('orders').summary(this.orderNo);
+            this.order = data;
+            
+            if (!this.order) {
+              this.error = '订单不存在';
+              this.loading = false;
+              return;
+            }
+            
+            // 检查订单是否已支付，如果已支付则直接跳转到支付结果页面
+            if (this.order.is_paid) {
+              // 构建支付结果页面URL
+              const payResultUrl = this.buildPayResultUrl();
+              window.location.href = payResultUrl;
+              return;
+            }
+            
+          } catch (err) {
+            console.error('加载订单失败:', err);
+            this.error = err.message || '加载订单失败';
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        // 构建支付结果页面URL
+        buildPayResultUrl() {
+          // 如果有配置的重定向URL，使用配置的URL
+          if (this.order && this.order.redirect_url) {
+            // 在重定向URL后添加订单号参数
+            const separator = this.order.redirect_url.includes('?') ? '&' : '?';
+            return `${this.order.redirect_url}${separator}order_no=${this.orderNo}`;
+          }
+          
+          // 否则使用默认的支付结果页面
+          return `${window.location.origin}/pay-result?order_no=${this.orderNo}`;
+        },
+
+        getRedirectUrl() {
+          return this.buildPayResultUrl();
+        },
+
+        async createPayment() {
+          if (!this.paymentMethod) {
+            this.errorMessage = '请选择支付方式';
+            return;
+          }
+          
+          try {
+            this.isProcessingPayment = true;
+            this.errorMessage = '';
+            
+            const {data} = await $wg.with('payments').create({
+              order_no: this.orderNo,
+              method: this.paymentMethod,
+              pay_result_url: `${window.location.origin}/pay-result?order_no=${this.orderNo}`,
+            });
+            
+            if (data && data.payment_url) {
+              // 跳转到支付链接
+              window.location.href = data.payment_url;
+            } else {
+              throw new Error('获取支付链接失败');
+            }
+          } catch (err) {
+            console.error('创建支付失败:', err);
+            this.errorMessage = err.message || '创建支付失败';
+            this.isProcessingPayment = false;
+          }
+        },
+        
+        selectPayment(provider, methodId) {
+          this.paymentProvider = provider;
+          this.paymentMethod = methodId;
+          this.errorMessage = '';
+          //console.log('已选择支付方式:', this.paymentMethod);
+        },
+        
+        goToOrderList() {
+          window.location.href = '/orders/';
+        }
+     }" x-init="init()" x-cloak>
+
+  <!-- 加载状态 -->
+  <div class="pure-g" x-show="loading">
+    <div class="pure-u-1">
+      <div class="wordgate-loading">
+        <div class="wordgate-spinner"></div>
+        <div>正在加载...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 错误状态 -->
+  <div class="pure-g" x-show="error && !loading">
+    <div class="pure-u-1">
+      <div class="wordgate-error">
+        <div class="wordgate-error-content">
+          <svg class="wordgate-error-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div class="wordgate-error-message" x-text="error"></div>
+          <button @click="goToOrderList" class="pure-button pure-button-primary">返回订单列表</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 支付页面主体 -->
+  <div class="wordgate-container" x-show="order && !loading && !error">
+    <!-- 第一行：订单标题和订单信息 -->
+    <div class="pure-g">
+      <div class="pure-u-1-2">
+        <div>
+          <h2>订单详情</h2>
+        </div>
+      </div>
+      <div class="pure-u-1-2">
+        <div class="wordgate-order-info">
+          <div class="wordgate-order-item">订单号：<span x-text="order?.order_no || '-'"></span></div>
+          <div class="wordgate-order-item">下单时间：<span x-text="$wg.helper.formatDate(order?.created_at)"></span></div>
+        </div>
+      </div>
+      <div class="pure-u-1" style="padding-top: 1em; padding-bottom: 2em;">
+        <div>
+          <table class="pure-table pure-table-striped" style="width: 100%;">
+            <thead>
+              <tr>
+                <th>商品名称</th>
+                <th class="wordgate-text-center">数量</th>
+                <th class="wordgate-text-right">单价</th>
+                <th class="wordgate-text-right">小计</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="item in order?.items || []" :key="item?.item_id || index">
+                <tr>
+                  <td x-text="item?.item_name || '-'"></td>
+                  <td class="wordgate-text-center" x-text="item?.quantity || 0"></td>
+                  <td class="wordgate-text-right">
+                    <span :class="'money-' + (order?.currency || 'cny').toLowerCase()"
+                      x-text="$wg.helper.formatMoney(item?.unit_price || 0, order?.currency)"></span>
+                  </td>
+                  <td class="wordgate-text-right">
+                    <span :class="'money-' + (order?.currency || 'cny').toLowerCase()"
+                      x-text="$wg.helper.formatMoney(item?.subtotal || 0, order?.currency)"></span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="pure-u-1">
+        <div class="wordgate-total">
+          <span class="wordgate-total-label">应付金额</span>
+          <span class="wordgate-total-value" :class="'money-' + (order?.currency || 'cny').toLowerCase()"
+            x-text="$wg.helper.formatMoney(order?.amount || 0, order?.currency)"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pure-g" style="margin-top: 1em;">
+      <div class="pure-u-1">
+        <div>
+          <h3>选择支付方式</h3>
+        </div>
+      </div>
+    </div>
+    <!-- 第六行：支付方式列表: 无支付方式时显示加载中 -->
+    <div class="pure-g" x-show="paymentMethods.length === 0">
+      <div class="pure-u-1" class="wordgate-text-center">
+        <div class="wordgate-spinner"></div>
+        <div class="wordgate-text-muted">加载支付方式...</div>
+      </div>
+    </div>
+    <!-- 第六行：支付方式列表: 有支付方式时显示选项 -->
+    <template x-if="paymentMethods.length > 0">
+      <!-- 常用支付方式：优先级高的方式，大屏一行3个，小屏一行1个 -->
+      <div class="pure-g">
+        <template x-for="method in paymentMethods.filter(m => m.priority <= 10)" :key="method.id">
+          <div class="pure-u-1 pure-u-md-1-3">
+            <div style="padding: 0.5em;">
+              <a class="wordgate-pay-option pure-button" :class="{'is-selected': method.id === paymentMethod}"
+                @click="selectPayment(method.id.split('.')[0], method.id)">
+                <div class="wordgate-option-content">
+                  <div class="wordgate-option-icon" x-show="method.icon">
+                    <img :src="method.icon" alt="" style="width: 100%; height: 100%; object-fit: contain;" />
+                  </div>
+                  <div class="wordgate-option-info">
+                    <span class="wordgate-option-name" x-text="method.name"></span>
+                  </div>
+                  <div class="wordgate-option-check" x-show="method.id === paymentMethod">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                </div>
+              </a>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
+
+      <!-- 更多支付方式折叠按钮 -->
+      <div class="pure-g" x-show="paymentMethods.some(m => m.priority > 10)">
+        <div class="pure-u-1 wordgate-text-center">
+          <button @click="showMorePayments = !showMorePayments" class="wordgate-more-button pure-button"
+            x-text="showMorePayments ? '收起更多支付方式 ↑' : '展开更多支付方式 ↓'">
+          </button>
+        </div>
+      </div>
+
+      <!-- 不常用支付方式：优先级低的方式，可折叠 -->
+      <div class="pure-g" x-show="showMorePayments">
+        <template x-for="method in paymentMethods.filter(m => m.priority > 10)" :key="method.id">
+          <div class="pure-u-1 pure-u-md-1-3">
+            <div style="padding: 0.5em;">
+              <a class="wordgate-pay-option pure-button" :class="{'is-selected': method.id === paymentMethod}"
+                @click="selectPayment(method.id.split('.')[0], method.id)">
+                <div class="wordgate-option-content">
+                  <div class="wordgate-option-icon" x-show="method.icon">
+                    <img :src="method.icon" alt="" style="width: 100%; height: 100%; object-fit: contain;" />
+                  </div>
+                  <div class="wordgate-option-info">
+                    <span class="wordgate-option-name" x-text="method.name"></span>
+                  </div>
+                  <div class="wordgate-option-check" x-show="method.id === paymentMethod">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                </div>
+              </a>
+            </div>
+          </div>
+        </template>
+      </div>
+
+    <!-- 第六行：立即支付按钮 -->
+    <div class="pure-g" style="margin-top: 2em;">
+      <div class="pure-u-1">
+        <div>
+          <div class="wordgate-pay-error" x-show="errorMessage">
+            <svg xmlns="http://www.w3.org/2000/svg" class="wordgate-pay-error-icon" width="20" height="20"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span x-text="errorMessage"></span>
+          </div>
+          <button @click="createPayment" class="pure-button pure-button-primary pure-button-xlarge pure-u-1"
+            :disabled="isProcessingPayment || !paymentMethod">
+            <span x-show="!isProcessingPayment">立即支付</span>
+            <span x-show="isProcessingPayment">处理中...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  [x-cloak] {
+    display: none !important;
+  }
+
+  /* 布局容器 */
+  .wordgate-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5em;
+  }
+
+  /* 订单信息 */
+  .wordgate-order-info {
+    padding: 1.25em;
+    text-align: right;
+  }
+
+  .wordgate-order-item {
+    margin-bottom: 0.5em;
+    color: #4b5563;
+  }
+
+  .wordgate-badge {
+    background: #f3f4f6;
+    padding: 0.4em 0.8em;
+    border-radius: 4px;
+    font-size: 0.875em;
+    color: #4b5563;
+  }
+
+  .wordgate-total {
+    text-align: right;
+    margin-bottom: 0.5em;
+  }
+
+  .wordgate-total-label {
+    font-size: 1.25em;
+    color: #4b5563;
+    margin-right: 1em;
+  }
+
+  .wordgate-total-value {
+    font-size: 1.5em;
+    font-weight: 600;
+    color: #e53e3e;
+  }
+
+  .wordgate-text-truncate {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .wordgate-text-small {
+    font-size: 0.875em;
+  }
+
+  .wordgate-text-muted {
+    color: #6b7280;
+  }
+
+  .wordgate-text-center {
+    text-align: center;
+  }
+
+  .wordgate-text-right {
+    text-align: right;
+  }
+
+  .wordgate-pay-option {
+    width: 100%;
+    text-align: left;
+    margin: 0.5em;
+    padding: 0.75em 1em;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    border-radius: 4px;
+    max-height: 80px;
+    overflow: hidden;
+  }
+
+  .wordgate-option-content {
+    display: flex;
+    align-items: center;
+    height: 48px;
+  }
+
+  .wordgate-pay-option.is-selected {
+    border-color: #3b82f6;
+    background-color: #eff6ff;
+  }
+
+  .wordgate-option-icon {
+    width: 48px;
+    height: 48px;
+    margin-right: 1em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .wordgate-option-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .wordgate-option-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  .wordgate-option-check {
+    color: #3b82f6;
+    margin-left: 0.5em;
+    flex-shrink: 0;
+  }
+
+  /* 错误信息 */
+  .wordgate-pay-error {
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    color: #dc2626;
+    padding: 0.75em 1em;
+    margin-bottom: 1em;
+    display: flex;
+    align-items: center;
+    font-size: 0.875em;
+  }
+
+  .wordgate-pay-error-icon {
+    margin-right: 0.5em;
+    flex-shrink: 0;
+  }
+
+  /* 加载和错误状态 */
+  .wordgate-loading,
+  .wordgate-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+  }
+
+  .wordgate-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .wordgate-error-content {
+    max-width: 400px;
+    padding: 2em;
+  }
+
+  .wordgate-error-icon {
+    margin-bottom: 1em;
+    color: #dc2626;
+  }
+
+  .wordgate-error-message {
+    font-size: 1.1em;
+    margin: 0 0 1em;
+    color: #1f2937;
+  }
+</style>

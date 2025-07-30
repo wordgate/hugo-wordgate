@@ -1,0 +1,544 @@
+{{/* WordGate登录表单短代码 */}}
+
+{{ $redirectUrl := .Get "redirect" | default "/" }}
+
+<div id="wg-login-form" 
+     x-data="loginFormComponent()"
+     x-init="init()"
+     x-cloak>
+     
+  <div class="wordgate-login-container">
+    <div class="wordgate-tabs">
+      <div class="wordgate-tab" 
+           :class="{ 'active': activeTab === 'password' }" 
+           @click="setActiveTab('password')">
+        {{ i18n "password_login" | default "密码登录" }}
+      </div>
+      <div class="wordgate-tab" 
+           :class="{ 'active': activeTab === 'code' }" 
+           @click="setActiveTab('code')">
+        {{ i18n "code_login" | default "验证码登录" }}
+      </div>
+    </div>
+    
+    <!-- 错误信息显示 -->
+    <div class="wordgate-error-message" x-show="error" x-text="error"></div>
+    
+    <!-- 密码登录表单 -->
+    <div class="wordgate-tab-content tab-password">
+      <form @submit.prevent="loginWithPassword">
+        <div class="wordgate-form-group">
+          <label for="username" class="wordgate-label">{{ i18n "username" | default "用户名/邮箱" }}</label>
+          <input type="text" id="username" x-model="username" class="wordgate-input" autocomplete="username" required>
+        </div>
+        
+        <div class="wordgate-form-group">
+          <label for="password" class="wordgate-label">{{ i18n "password" | default "密码" }}</label>
+          <input type="password" id="password" x-model="password" class="wordgate-input" autocomplete="current-password" required>
+        </div>
+        
+        <div class="wordgate-form-group">
+          <button type="submit" class="pure-button pure-button-primary" :disabled="isLoading">
+            <span x-show="!isLoading">{{ i18n "login" | default "登录" }}</span>
+            <span x-show="isLoading">{{ i18n "logging_in" | default "登录中..." }}</span>
+          </button>
+        </div>
+      </form>
+    </div>
+    
+    <!-- 验证码登录表单 -->
+    <div class="wordgate-tab-content tab-code" style="display: none;">
+      <form @submit.prevent="loginWithCode">
+        <div class="wordgate-form-group">
+          <label for="email" class="wordgate-label">{{ i18n "email" | default "邮箱" }}</label>
+          <div class="wordgate-email-input-container">
+            <input type="email" id="email" x-model="email" class="wordgate-input" autocomplete="email" required>
+            <button type="button" 
+                    class="wordgate-send-code-btn" 
+                    @click="sendVerificationCode" 
+                    :disabled="countdown > 0 || isLoading">
+              <span x-show="countdown <= 0">{{ i18n "send_code" | default "发送验证码" }}</span>
+              <span x-show="countdown > 0" x-text="countdown + '秒后重试'"></span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="wordgate-form-group">
+          <label for="code" class="wordgate-label">{{ i18n "verification_code" | default "验证码" }}</label>
+          <input type="text" id="code" x-model="code" class="wordgate-input" autocomplete="one-time-code" inputmode="numeric" required>
+        </div>
+        
+        <div class="wordgate-form-group">
+          <button type="submit" class="pure-button pure-button-primary" :disabled="isLoading">
+            <span x-show="!isLoading">{{ i18n "login" | default "登录" }}</span>
+            <span x-show="isLoading">{{ i18n "logging_in" | default "登录中..." }}</span>
+          </button>
+        </div>
+      </form>
+    </div>
+    
+    <!-- OAuth登录区域 -->
+    <div class="wordgate-oauth-section" x-show="oauthProviders.length > 0">
+      <div class="wordgate-oauth-divider">
+        <span>{{ i18n "or_login_with" | default "或使用以下方式登录" }}</span>
+      </div>
+      
+      <div class="wordgate-oauth-buttons">
+        <template x-for="provider in oauthProviders" :key="provider.name">
+          <button 
+            type="button"
+            class="wordgate-oauth-button"
+            :class="'wordgate-oauth-' + provider.name"
+            @click="handleOAuthLogin(provider.name)"
+            :disabled="isLoading"
+          >
+            <img :src="provider.icon" :alt="provider.display_name" class="wordgate-oauth-icon">
+            <span x-text="'{{ i18n "login_with" | default "使用" }}' + ' ' + provider.display_name"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 登录表单组件
+  window.loginFormComponent = function() {
+    return {
+      activeTab: 'password',
+      username: '',
+      password: '',
+      email: '',
+      code: '',
+      error: '',
+      isLoading: false,
+      countdown: 0,
+      redirectUrl: '',
+      jwtCallback: '',
+      state: '',
+      oauthProviders: [], // OAuth 提供者列表
+      
+      // 初始化时获取URL参数
+      init() {
+        this.getUrlParams();
+        this.checkLogin();
+        this.loadOAuthProviders();
+      },
+      
+      // 处理已登录用户的JWT
+      async handleExistingLogin() {
+        try {
+          this.isLoading = true;
+          // 获取当前用户的token信息并验证它是否有效
+          if (!$wg.auth.isLoggedIn()) {
+            // token不存在或已过期
+            $wg.auth.logout();
+            return false;
+          }
+          
+          window.location.href = this.redirectUrl;
+          return true;
+        } catch (error) {
+          console.error('[WordGate] 处理已登录状态失败:', error);
+          // 发生错误时清除登录状态
+          $wg.auth.logout();
+          return false;
+        } finally {
+          this.isLoading = false;
+        }
+      },
+      
+      // 初始化检查
+      async checkLogin() {
+        if ($wg && $wg.auth.isLoggedIn()) {
+          window.location.href = this.redirectUrl;
+        }
+      },
+      
+      // 处理登录成功后的跳转
+      handleLoginSuccess(data) {
+        // 检查data的格式，确保包含必要字段
+        if (!data || !data.token) {
+          console.error('[WordGate] 登录响应格式错误:', data);
+          this.error = '{{ i18n "login_failed" | default "登录失败，请稍后重试" }}';
+          this.isLoading = false;
+          return;
+        }
+        
+        // 提取必要的字段传给 setToken
+        $wg.auth.setToken({
+          token: data.token,
+          expired_at: data.expired_at,
+          user_id: data.user_id,
+          user: data.user
+        });
+        
+        // 使用普通重定向，添加延时确保存储操作完成
+        setTimeout(() => {
+          window.location.href = this.redirectUrl;
+        }, 300); // 延迟300毫秒，给存储操作足够的时间完成
+      },
+      
+      // 从URL获取所有必要参数
+      getUrlParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // 获取重定向URL
+        const redirectParam = urlParams.get('redirect_uri') || urlParams.get('redirect');
+        this.redirectUrl = redirectParam || '{{ $redirectUrl }}';
+        
+        // 获取state参数
+        this.state = urlParams.get('state') || '';
+      },
+      
+      // 切换标签
+      setActiveTab(tab) {
+        this.activeTab = tab;
+        this.error = '';
+        
+        // 手动处理显示/隐藏
+        setTimeout(() => {
+          const tabs = document.querySelectorAll('#wg-login-form .wordgate-tab-content');
+          tabs.forEach(t => {
+            t.style.display = 'none';
+          });
+          
+          const activeTab = document.querySelector(`#wg-login-form .tab-${tab}`);
+          if (activeTab) {
+            activeTab.style.display = 'block';
+          }
+        }, 0);
+      },
+      
+      // 密码登录
+      async loginWithPassword() {
+        if (!this.username || !this.password) {
+          this.error = '{{ i18n "please_enter_username_password" | default "请输入用户名和密码" }}';
+          return;
+        }
+        
+        this.isLoading = true;
+        this.error = '';
+        
+        try {
+          const {data} = await $wg.with('auth').login({
+            target: this.username,
+            password: this.password,
+            type: 'email'
+          });
+          
+          if (data) {
+            this.handleLoginSuccess(data);
+            // handleLoginSuccess 会处理页面跳转或错误处理
+          } else {
+            throw new Error('{{ i18n "login_failed" | default "登录失败，请检查用户名和密码" }}');
+          }
+        } catch (error) {
+          console.error('[WordGate] 登录失败:', error);
+          this.error = error.message || '{{ i18n "login_failed" | default "登录失败，请检查用户名和密码" }}';
+          this.isLoading = false;
+        }
+      },
+      
+      // 发送验证码
+      async sendVerificationCode() {
+        if (!this.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.email)) {
+          this.error = '{{ i18n "please_enter_valid_email" | default "请输入有效的邮箱地址" }}';
+          return;
+        }
+        
+        this.isLoading = true;
+        this.error = '';
+        
+        try {
+          await $wg.with('auth').send_code({
+            target: this.email,
+            type: 'email',
+            is_signup: false
+          });
+          
+          // 开始倒计时
+          this.startCountdown();
+        } catch (error) {
+          console.error('[WordGate] 发送验证码失败:', error);
+          this.error = error.message || '{{ i18n "send_code_failed" | default "发送验证码失败，请稍后重试" }}';
+        } finally {
+          this.isLoading = false;
+        }
+      },
+      
+      // 验证码登录
+      async loginWithCode() {
+        if (!this.email || !this.code) {
+          this.error = '{{ i18n "please_enter_email_code" | default "请输入邮箱和验证码" }}';
+          return;
+        }
+        
+        this.isLoading = true;
+        this.error = '';
+        
+        try {
+          // 明确等待验证码验证完成后再处理
+          const {code, data} = await $wg.with('auth').verify_code({
+            target: this.email,
+            code: this.code,
+            type: 'email'
+          });
+          
+          // 请求成功后处理登录成功
+          if (data) {
+            // 保持isLoading为true，直到handleLoginSuccess完成
+            this.handleLoginSuccess(data);
+            // 注意：handleLoginSuccess 会处理页面跳转或错误处理
+          } else {
+            throw new Error('{{ i18n "verification_failed" | default "验证码验证失败" }}');
+          }
+        } catch (error) {
+          console.error('[WordGate] 验证码登录失败:', error);
+          this.error = error.message || '{{ i18n "verification_failed" | default "验证码错误或已过期" }}';
+          this.isLoading = false;
+        }
+      },
+      
+      // OAuth登录处理
+      async handleOAuthLogin(provider) {
+        this.isLoading = true;
+        this.error = '';
+        
+        try {
+          // 获取当前URL的origin
+          const origin = window.location.origin;
+          
+          // 构建OAuth回调URL
+          const oauthCallback = `${origin}/oauth/callback`;
+          const callbackParams = new URLSearchParams();
+          callbackParams.set('provider', provider);
+          
+          // 构建完整的OAuth回调URL
+          const fullOAuthCallback = `${oauthCallback}?${callbackParams.toString()}`;
+          
+          // 获取授权URL
+          const {data} = await $wg.with('auth').oauth_authorize({
+            provider: provider,
+            oauth_callback: fullOAuthCallback,
+            state: this.state
+          });
+          
+          // 重定向到授权页面
+          window.location.href = data.auth_url;
+        } catch (error) {
+          console.error('[WordGate] OAuth登录失败:', error);
+          this.error = error.message || '{{ i18n "oauth_login_failed" | default "第三方登录失败，请稍后重试" }}';
+          this.isLoading = false;
+        }
+      },
+      
+      // 倒计时功能
+      startCountdown() {
+        this.countdown = 60;
+        const timer = setInterval(() => {
+          this.countdown--;
+          if (this.countdown <= 0) {
+            clearInterval(timer);
+          }
+        }, 1000);
+      },
+      
+      // 初始化时加载 OAuth 提供者
+      async loadOAuthProviders() {
+        try {
+          const {data: providers} = await $wg.with('auth').oauth_providers();
+          this.oauthProviders = Object.values(providers).filter(p => p.enabled);
+        } catch (error) {
+          console.error('[WordGate] 加载OAuth提供者失败:', error);
+        }
+      }
+    };
+  };
+
+  // 初始化选项卡显示
+  document.addEventListener('DOMContentLoaded', function() {
+    // 确保Alpine.js初始化后再处理
+    setTimeout(function() {
+      const passwordTab = document.querySelector('#wg-login-form .tab-password');
+      const codeTab = document.querySelector('#wg-login-form .tab-code');
+      
+      if (passwordTab) passwordTab.style.display = 'block';
+      if (codeTab) codeTab.style.display = 'none';
+    }, 100);
+  });
+</script>
+
+<style>
+  .wordgate-login-container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 2rem;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    background-color: #fff;
+  }
+  
+  .wordgate-tabs {
+    display: flex;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .wordgate-tab {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  
+  .wordgate-tab.active {
+    border-bottom-color: #3498db;
+    color: #3498db;
+  }
+  
+  .wordgate-tab-content {
+    transition: all 0.3s ease;
+  }
+  
+  .wordgate-form-group {
+    margin-bottom: 1.5rem;
+  }
+  
+  .wordgate-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+  }
+  
+  .wordgate-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+  
+  .wordgate-email-input-container {
+    display: flex;
+  }
+  
+  .wordgate-email-input-container .wordgate-input {
+    flex: 1;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  
+  .wordgate-send-code-btn {
+    padding: 0 1rem;
+    background-color: #f1f1f1;
+    border: 1px solid #ddd;
+    border-left: none;
+    white-space: nowrap;
+    cursor: pointer;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+  }
+  
+  .wordgate-send-code-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  .wordgate-error-message {
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    color: #721c24;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+  }
+  
+  [x-cloak] {
+    display: none !important;
+  }
+  
+  /* OAuth登录样式 */
+  .wordgate-oauth-section {
+    margin-top: 2rem;
+    text-align: center;
+  }
+  
+  .wordgate-oauth-divider {
+    position: relative;
+    margin: 1.5rem 0;
+  }
+  
+  .wordgate-oauth-divider::before,
+  .wordgate-oauth-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: calc(50% - 100px);
+    height: 1px;
+    background-color: #ddd;
+  }
+  
+  .wordgate-oauth-divider::before {
+    left: 0;
+  }
+  
+  .wordgate-oauth-divider::after {
+    right: 0;
+  }
+  
+  .wordgate-oauth-divider span {
+    background-color: #fff;
+    padding: 0 1rem;
+    color: #666;
+    font-size: 0.9rem;
+  }
+  
+  .wordgate-oauth-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 300px;
+    margin: 0 auto;
+  }
+  
+  .wordgate-oauth-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+  }
+  
+  .wordgate-oauth-button:hover {
+    background-color: #f8f8f8;
+  }
+  
+  .wordgate-oauth-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  .wordgate-oauth-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+  }
+  
+  /* 提供者特定样式 */
+  .wordgate-oauth-google {
+    border-color: #4285f4;
+    color: #4285f4;
+  }
+  
+  .wordgate-oauth-github {
+    border-color: #24292e;
+    color: #24292e;
+  }
+</style>

@@ -1,0 +1,3 @@
+{{/* WordGate用户状态短代码 - 用于在Markdown内容中调用部分模板 */}}
+{{ $loginUrl := .Get "login_url" | default "/login" }}
+{{ partial "wordgate-user.html" (dict "loginUrl" $loginUrl) }} 

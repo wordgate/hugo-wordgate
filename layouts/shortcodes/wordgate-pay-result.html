@@ -1,0 +1,443 @@
+{{/* WordGate支付结果页面短代码 - 显示支付状态和结果 */}}
+
+<div id="wg-payment-result" 
+     x-data="payResultComponent()"
+     x-init="init()" 
+     x-cloak>
+
+  <!-- 加载状态 -->
+  <div class="pure-g" x-show="loading">
+    <div class="pure-u-1">
+      <div class="wordgate-loading">
+        <div class="wordgate-spinner"></div>
+        <div>正在加载支付结果...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 错误状态 -->
+  <div class="pure-g" x-show="error && !loading">
+    <div class="pure-u-1">
+      <div class="wordgate-error">
+        <div class="wordgate-error-content">
+          <svg class="wordgate-error-icon" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div class="wordgate-error-message" x-text="error"></div>
+          <button @click="goToOrderList" class="pure-button pure-button-primary">返回订单列表</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 支付结果页面主体 -->
+  <div class="wordgate-container" x-show="payment && order && !loading && !error">
+    <!-- 第一行：结果标题和状态图标 -->
+    <div class="pure-g">
+      <div class="pure-u-1 wordgate-text-center">
+        <!-- 支付失败状态 -->
+        <div x-show="payment?.status === 'failed' || payment?.status === 'canceled'"
+          class="wordgate-result-status wordgate-result-failed">
+          <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+          <h2 x-text="payment?.status === 'canceled' ? '支付已取消' : '支付失败'"></h2>
+          <p class="wordgate-result-message" x-text="errorMessage || '很抱歉，您的支付未能完成'"></p>
+        </div>
+
+        <!-- 支付成功状态 -->
+        <div x-show="order && order.is_paid" class="wordgate-result-status wordgate-result-success">
+          <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          <h2>支付成功</h2>
+          <p class="wordgate-result-message">您的订单已完成支付，谢谢您的购买</p>
+          <div class="wordgate-countdown" x-show="countdown > 0">
+            <span>页面将在 </span>
+            <span x-text="countdown"></span>
+            <span> 秒后自动跳转</span>
+          </div>
+          <button @click="goToOrderList()" class="pure-button pure-button-primary" style="margin-top: 1em;">
+            立即跳转
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第二行：订单信息 -->
+    <div class="pure-g" style="margin-top: 2em;">
+      <div class="pure-u-1">
+        <div class="wordgate-order-details">
+          <h3>订单信息</h3>
+          <div class="wordgate-detail-row">
+            <span class="wordgate-detail-label">订单号：</span>
+            <span class="wordgate-detail-value" x-text="order?.order_no || '-'"></span>
+          </div>
+          <div class="wordgate-detail-row">
+            <span class="wordgate-detail-label">支付金额：</span>
+            <span class="wordgate-detail-value"
+              x-text="$wg.helper.formatMoney(order?.amount || 0, order?.currency)"></span>
+          </div>
+          <div class="wordgate-detail-row">
+            <span class="wordgate-detail-label">支付方式：</span>
+            <span class="wordgate-detail-value" x-text="payment?.method ? payment.method.name : '-'"></span>
+          </div>
+          <div class="wordgate-detail-row" x-show="order?.paid_at">
+            <span class="wordgate-detail-label">支付时间：</span>
+            <span class="wordgate-detail-value" x-text="$wg.helper.formatDate(order?.paid_at)"></span>
+          </div>
+          <div class="wordgate-detail-row">
+            <span class="wordgate-detail-label">支付状态：</span>
+            <span class="wordgate-detail-value" x-text="order?.is_paid ? '已支付' : '未支付'"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第三行：操作按钮 -->
+    <div class="pure-g" style="margin-top: 2em;">
+      <div class="pure-u-1">
+        <div class="wordgate-text-center">
+          <div class="wordgate-redirect-message" x-show="isRedirecting">
+            <div class="wordgate-spinner-small"></div>
+            <span>即将跳转...</span>
+          </div>
+          <button @click="goToOrderList" class="pure-button pure-button-secondary" x-show="!isRedirecting">
+            返回订单列表
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 支付结果组件
+  window.payResultComponent = function() {
+    return {
+      orderNo: '',
+      intentId: '',
+      payment: null,
+      order: null,
+      loading: true,
+      error: null,
+      errorMessage: '',
+      countdown: 10,
+      countdownTimer: null,
+      isRedirecting: false,
+      
+      init() {
+        // 从URL获取订单号和意图ID
+        this.orderNo = $wg.helper.getQueryParam('order_no');
+        this.intentId = $wg.helper.getQueryParam('intent_id');
+        const urlStatus = $wg.helper.getQueryParam('status');
+        
+        if (!this.intentId && !this.orderNo) {
+          this.error = '缺少必要参数';
+          this.loading = false;
+          return;
+        }
+        
+        // 如果URL中有cancelled状态，先调用取消支付接口
+        if (urlStatus === 'cancelled' && this.intentId) {
+          this.cancelPayment();
+        } else {
+          // 加载支付信息
+          this.loadPaymentStatus();
+        }
+      },
+      
+      async loadPaymentStatus() {
+        try {
+          this.loading = true;
+          this.error = null;
+          
+          // 获取支付状态
+          const {data} = await $wg.with('payments').get(this.intentId);
+          this.payment = data;
+          
+          if (!this.payment) {
+            this.error = '支付信息不存在';
+            this.loading = false;
+            return;
+          }
+          
+          // 获取订单信息
+          this.order = this.payment.order;
+          
+          // 判断支付状态
+          if (this.payment?.status === 'failed' || this.payment?.status === 'canceled') {
+            // 支付失败或取消状态
+            this.errorMessage = this.payment?.error_message || (this.payment?.status === 'failed' ? '支付失败' : '支付已取消');
+          } else if (this.order && this.order.is_paid) {
+            if (this.order.redirect_url) {
+              // 订单已支付成功，直接跳转
+              location.href = this.order.redirect_url;
+            } else {
+              this.startCountdown();
+            }
+          }
+          
+        } catch (err) {
+          console.error('加载支付状态失败:', err);
+          this.error = err.message || '加载支付状态失败';
+        } finally {
+          this.loading = false;
+        }
+      },
+      
+      startCountdown() {
+        if (this.countdownTimer) {
+          clearInterval(this.countdownTimer);
+        }
+        this.countdown = 10;
+        this.countdownTimer = setInterval(() => {
+          this.countdown--;
+          
+          if (this.countdown <= 0) {
+            clearInterval(this.countdownTimer);
+            
+            // 倒计时结束，检查最后一次状态
+            this.checkFinalStatus();
+          }
+        }, 1000);
+      },
+      
+      async checkFinalStatus() {
+        try {
+          // 最后再次检查支付状态
+          const {data: payment} = await $wg.with('payments').get(this.intentId);
+          this.payment = payment;
+          this.order = this.payment ? this.payment.order : null;
+          
+          // 无论结果如何都跳转
+          this.goToOrderList();
+        } catch (err) {
+          console.error('检查最终状态失败:', err);
+          // 出错也跳转
+          this.goToOrderList();
+        }
+      },
+      
+      async cancelPayment() {
+        try {
+          this.loading = true;
+          this.error = null;
+          
+          // 调用取消支付接口
+          const {data} = await $wg.with('payments').cancel(this.intentId);
+          this.payment = data;
+          
+          if (!this.payment) {
+            this.error = '支付信息不存在';
+            this.loading = false;
+            return;
+          }
+          
+          // 获取订单信息
+          this.order = this.payment.order;
+          
+          // 设置错误消息
+          this.errorMessage = this.payment?.error_message || '支付已取消';
+          
+        } catch (err) {
+          console.error('取消支付失败:', err);
+          this.error = err.message || '取消支付失败';
+        } finally {
+          this.loading = false;
+        }
+      },
+      
+      goToOrderList() {
+        this.isRedirecting = true;
+        
+        setTimeout(() => {
+          // 跳转到指定URL或默认订单列表
+          window.location.href = '/orders/';
+        }, 2000); // 延迟2秒让用户看到最终状态
+      }
+    };
+  };
+</script>
+
+<style>
+  [x-cloak] {
+    display: none !important;
+  }
+
+  /* 布局容器 */
+  .wordgate-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1.5em;
+  }
+
+  /* 结果状态显示 */
+  .wordgate-result-status {
+    padding: 2em 1em;
+    margin-bottom: 1em;
+    border-radius: 8px;
+  }
+
+  .wordgate-result-status svg {
+    margin-bottom: 1em;
+  }
+
+  .wordgate-result-status h2 {
+    margin: 0.5em 0;
+    font-size: 1.5em;
+  }
+
+  .wordgate-result-message {
+    font-size: 1em;
+    color: #4b5563;
+    margin: 0.5em 0;
+  }
+
+  /* 状态颜色 */
+  .wordgate-result-success {
+    background-color: #f0fdf4;
+    border: 1px solid #dcfce7;
+  }
+
+  .wordgate-result-success svg {
+    color: #22c55e;
+  }
+
+  .wordgate-result-failed {
+    background-color: #fef2f2;
+    border: 1px solid #fee2e2;
+  }
+
+  .wordgate-result-failed svg {
+    color: #ef4444;
+  }
+
+  .wordgate-result-processing {
+    background-color: #f0f9ff;
+    border: 1px solid #e0f2fe;
+  }
+
+  .wordgate-result-processing svg {
+    color: #3b82f6;
+  }
+
+  .wordgate-result-warning {
+    background-color: #fffbeb;
+    border: 1px solid #fef3c7;
+  }
+
+  .wordgate-result-warning svg {
+    color: #f59e0b;
+  }
+
+  /* 倒计时 */
+  .wordgate-countdown {
+    font-size: 1.25em;
+    margin: 1em 0;
+    font-weight: 500;
+    color: #3b82f6;
+  }
+
+  /* 订单详情 */
+  .wordgate-order-details {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5em;
+  }
+
+  .wordgate-order-details h3 {
+    margin-top: 0;
+    margin-bottom: 1em;
+    color: #1f2937;
+  }
+
+  .wordgate-detail-row {
+    display: flex;
+    margin-bottom: 0.75em;
+  }
+
+  .wordgate-detail-label {
+    width: 100px;
+    color: #6b7280;
+    flex-shrink: 0;
+  }
+
+  .wordgate-detail-value {
+    font-weight: 500;
+    color: #1f2937;
+  }
+
+  /* 跳转消息 */
+  .wordgate-redirect-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    margin: 1em 0;
+  }
+
+  .wordgate-spinner-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 0.5em;
+  }
+
+  /* 复用现有样式 */
+  .wordgate-loading,
+  .wordgate-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+  }
+
+  .wordgate-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .wordgate-error-content {
+    max-width: 400px;
+    padding: 2em;
+  }
+
+  .wordgate-error-icon {
+    margin-bottom: 1em;
+    color: #dc2626;
+  }
+
+  .wordgate-error-message {
+    font-size: 1.1em;
+    margin: 0 0 1em;
+    color: #1f2937;
+  }
+
+  .wordgate-text-center {
+    text-align: center;
+  }
+</style>

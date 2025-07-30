@@ -1,0 +1,29 @@
+# WordGate 模块配置文件
+
+# 模块配置
+module:
+  # 版本要求
+  hugoVersion:
+    min: "0.111.0"  # 资源注入需要 Hugo 0.111.0 及以上版本
+
+
+# WordGate 默认配置
+wordgate:
+  # 布局设置
+  # 注意：这些文件都应位于站点的layouts/partials/目录下
+  header_file: "header.html"  # partials/目录下的header部件文件名
+  footer_file: "footer.html"  # partials/目录下的footer部件文件名
+  
+  # WordGate 配置参数
+  config:
+    security:
+      code_expire: 600
+    
+    payment:
+      enabled: true
+
+# 模块元数据
+_build:
+  render: never
+  list: never
+  publishResources: false
