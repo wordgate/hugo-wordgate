@@ -1,0 +1,104 @@
+<div class="manager-nav">
+  <div style="margin-bottom: 2rem;">
+    <h4 style="margin: 0 0 1rem 0; color: #6c757d; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">
+      {{ .Site.Title }} 管理后台
+    </h4>
+  </div>
+
+  <nav>
+    <ul>
+      <!-- 仪表板 -->
+      <li>
+        <a href="/manager/" {{ if eq .RelPermalink "/manager/" }}class="active"{{ end }}>
+          📊 仪表板
+        </a>
+      </li>
+
+      <!-- 产品管理 -->
+      <li>
+        <a href="/manager/products/" {{ if hasPrefix .RelPermalink "/manager/products" }}class="active"{{ end }}>
+          📦 产品管理
+        </a>
+      </li>
+
+      <!-- 订单管理 -->
+      <li>
+        <a href="/manager/orders/" {{ if hasPrefix .RelPermalink "/manager/orders" }}class="active"{{ end }}>
+          📝 订单管理
+        </a>
+      </li>
+
+      <!-- 用户管理 -->
+      <li>
+        <a href="/manager/users/" {{ if hasPrefix .RelPermalink "/manager/users" }}class="active"{{ end }}>
+          👥 用户管理
+        </a>
+      </li>
+
+      <!-- 会员管理 -->
+      <li>
+        <a href="/manager/membership/" {{ if hasPrefix .RelPermalink "/manager/membership" }}class="active"{{ end }}>
+          💎 会员管理
+        </a>
+      </li>
+
+      <!-- 系统设置 -->
+      <li style="margin-top: 1.5rem;">
+        <div style="color: #6c757d; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
+          系统设置
+        </div>
+      </li>
+      <li>
+        <a href="/manager/config/" {{ if hasPrefix .RelPermalink "/manager/config" }}class="active"{{ end }}>
+          ⚙️ 应用配置
+        </a>
+      </li>
+      <li>
+        <a href="/manager/profile/" {{ if hasPrefix .RelPermalink "/manager/profile" }}class="active"{{ end }}>
+          🏢 应用信息
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- 用户信息 -->
+  <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #dee2e6;">
+    <div id="manager-user-info" style="font-size: 0.875rem; color: #6c757d;">
+      <div>当前用户: <span id="current-user-name">-</span></div>
+      <div>角色: <span id="current-user-role">-</span></div>
+    </div>
+    <div style="margin-top: 0.5rem;">
+      <a href="javascript:void(0)" onclick="managerLogout()" style="font-size: 0.75rem; color: #dc3545;">
+        退出登录
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 显示当前用户信息
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.$wg && window.$wg.auth.isLoggedIn()) {
+      const profile = window.$wg.user.getProfile();
+      if (profile.nickname) {
+        document.getElementById('current-user-name').textContent = profile.nickname;
+      }
+      if (profile.role) {
+        const roleNames = {
+          'owner': '所有者',
+          'admin': '管理员',
+          'user': '用户'
+        };
+        document.getElementById('current-user-role').textContent = roleNames[profile.role] || profile.role;
+      }
+    }
+  });
+
+  // 退出登录
+  function managerLogout() {
+    if (confirm('确定要退出登录吗？')) {
+      window.$wg.auth.logout();
+      window.location.href = '/wordgate/login';
+    }
+  }
+</script>

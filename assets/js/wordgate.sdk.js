@@ -215,6 +215,24 @@ class WordGate {
         localStorage.setItem("wordgate_profile", JSON.stringify(profile));
       }
     },
+
+    /**
+     * 检查用户是否有管理员权限
+     * @returns {boolean} 是否有管理员权限
+     */
+    hasManagerRole() {
+      const profile = this.getProfile();
+      return profile.role === 'admin' || profile.role === 'owner';
+    },
+
+    /**
+     * 检查用户是否是应用所有者
+     * @returns {boolean} 是否是所有者
+     */
+    isOwner() {
+      const profile = this.getProfile();
+      return profile.role === 'owner';
+    },
   };
 
   /**
@@ -355,6 +373,63 @@ class WordGate {
               this.request("GET", `/api/payments/${intentID}/tron-status`),
           };
           break;
+        case "manager":
+          this._resource_cache[name] = {
+            // 产品管理 API
+            products: {
+              list: (params = {}) => {
+                const query = new URLSearchParams(params).toString();
+                return this.request("GET", `/app/products?${query}`);
+              },
+              create: (data) => this.request("POST", "/app/products", data),
+              update: (code, data) => this.request("PUT", `/app/products/${code}`, data),
+              delete: (code) => this.request("DELETE", `/app/products/${code}`),
+              restore: (code) => this.request("POST", `/app/products/${code}/restore`),
+              sync: () => this.request("POST", "/app/product/sync"),
+            },
+            // 订单管理 API
+            orders: {
+              list: (params = {}) => {
+                const query = new URLSearchParams(params).toString();
+                return this.request("GET", `/app/orders?${query}`);
+              },
+              get: (orderNo) => this.request("GET", `/app/orders/${orderNo}`),
+              create: (data) => this.request("POST", "/app/orders/create", data),
+              mark_as_paid: (data) => this.request("POST", "/app/orders/mark-as-paid", data),
+            },
+            // 用户管理 API
+            users: {
+              list: (params = {}) => {
+                const query = new URLSearchParams(params).toString();
+                return this.request("GET", `/app/users?${query}`);
+              },
+              get: (id) => this.request("GET", `/app/users/${id}`),
+              update_status: (id, data) => this.request("POST", `/app/users/${id}/status`, data),
+            },
+            // 会员等级管理 API
+            membership: {
+              list: (params = {}) => {
+                const query = new URLSearchParams(params).toString();
+                return this.request("GET", `/app/membership/tiers?${query}`);
+              },
+              create: (data) => this.request("POST", "/app/membership/tiers", data),
+              update: (code, data) => this.request("PUT", `/app/membership/tiers/${code}`, data),
+              delete: (code) => this.request("DELETE", `/app/membership/tiers/${code}`),
+              restore: (code) => this.request("POST", `/app/membership/tiers/${code}/restore`),
+              sync: () => this.request("POST", "/app/membership/sync"),
+            },
+            // 应用配置管理 API
+            config: {
+              get: () => this.request("GET", "/app/config"),
+              update: (data) => this.request("PUT", "/app/config", data),
+            },
+            // 应用信息管理 API
+            profile: {
+              get: () => this.request("GET", "/app/profile"),
+              update: (data) => this.request("PUT", "/app/profile", data),
+            },
+          };
+          break;
         default:
           throw new Error(`未知资源: ${resource_name}`);
       }
@@ -391,6 +466,15 @@ class WordGate {
     if (this.app_code) {
       headers["X-App-Code"] = this.app_code;
     }
+    
+    // 为管理 API 请求添加 App Secret 认证
+    if (endpoint.startsWith('/app/')) {
+      const appSecret = window.wordgate_config.app_secret;
+      if (appSecret) {
+        headers["X-App-Secret"] = appSecret;
+      }
+    }
+    
     const userToken = this.auth.getToken();
     if (userToken) {
       headers["Authorization"] = `Bearer ${userToken}`;
@@ -494,6 +578,14 @@ class WordGate {
       const headers = {};
       if (this.app_code) {
         headers["X-App-Code"] = this.app_code;
+      }
+
+      // 为管理 API 请求添加 App Secret 认证
+      if (path.startsWith('/app/')) {
+        const appSecret = window.wordgate_config.app_secret;
+        if (appSecret) {
+          headers["X-App-Secret"] = appSecret;
+        }
       }
 
       const userToken = this.auth.getToken();

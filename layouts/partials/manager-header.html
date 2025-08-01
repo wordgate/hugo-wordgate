@@ -1,0 +1,48 @@
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <div>
+    <h1 style="margin: 0; font-size: 1.5rem; color: #495057;">
+      {{ .Title }}
+    </h1>
+    {{ if .Params.description }}
+    <p style="margin: 0.25rem 0 0 0; color: #6c757d; font-size: 0.875rem;">
+      {{ .Params.description }}
+    </p>
+    {{ end }}
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 1rem;">
+    <!-- 刷新按钮 -->
+    <button onclick="location.reload()" class="btn btn-sm" style="background: #f8f9fa; border: 1px solid #dee2e6;">
+      🔄 刷新
+    </button>
+
+    <!-- 返回前台 -->
+    <a href="/" class="btn btn-sm" style="background: #f8f9fa; border: 1px solid #dee2e6; text-decoration: none;">
+      🏠 前台
+    </a>
+
+    <!-- 应用信息 -->
+    <div id="app-info" style="font-size: 0.875rem; color: #6c757d; text-align: right;">
+      <div>应用: <span id="app-name">{{ .Site.Title }}</span></div>
+      <div>版本: <span id="app-version">1.0.0</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 加载应用信息
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.$wg && window.$wg.user.hasManagerRole()) {
+      // 获取应用配置信息
+      window.$wg.with('manager').profile.get()
+        .then(response => {
+          if (response.data && response.data.name) {
+            document.getElementById('app-name').textContent = response.data.name;
+          }
+        })
+        .catch(error => {
+          console.log('获取应用信息失败:', error);
+        });
+    }
+  });
+</script>

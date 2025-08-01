@@ -1,0 +1,271 @@
+<div x-data="userManager()" x-init="init()">
+  <!-- 搜索筛选 -->
+  <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+    <form @submit.prevent="searchUsers()">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div class="form-group">
+          <label>用户邮箱</label>
+          <input type="email" x-model="filters.email" class="form-control" placeholder="请输入用户邮箱">
+        </div>
+        
+        <div class="form-group">
+          <label>用户昵称</label>
+          <input type="text" x-model="filters.nickname" class="form-control" placeholder="请输入用户昵称">
+        </div>
+        
+        <div class="form-group">
+          <label>用户状态</label>
+          <select x-model="filters.status" class="form-control">
+            <option value="">全部</option>
+            <option value="1">正常</option>
+            <option value="0">禁用</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>用户角色</label>
+          <select x-model="filters.role" class="form-control">
+            <option value="">全部</option>
+            <option value="owner">所有者</option>
+            <option value="admin">管理员</option>
+            <option value="user">普通用户</option>
+          </select>
+        </div>
+      </div>
+      
+      <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+        <button type="submit" class="btn btn-primary">🔍 搜索</button>
+        <button type="button" @click="resetFilters()" class="btn">🔄 重置</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 加载状态 -->
+  <div x-show="loading" class="alert" style="background-color: #f8f9fa; border-color: #dee2e6;">
+    正在加载用户列表...
+  </div>
+
+  <!-- 错误提示 -->
+  <div x-show="error" x-text="error" class="alert alert-danger"></div>
+
+  <!-- 用户列表 -->
+  <div class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>用户ID</th>
+          <th>头像</th>
+          <th>用户信息</th>
+          <th>角色</th>
+          <th>状态</th>
+          <th>最后登录</th>
+          <th>注册时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="user in users" :key="user.id">
+          <tr>
+            <td x-text="user.id"></td>
+            <td>
+              <div style="width: 40px; height: 40px; border-radius: 50%; background: #f8f9fa; display: flex; align-items: center; justify-content: center; color: #6c757d;">
+                <template x-if="user.avatar">
+                  <img :src="user.avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                </template>
+                <template x-if="!user.avatar">
+                  <span x-text="(user.nickname || user.email || 'U').charAt(0).toUpperCase()"></span>
+                </template>
+              </div>
+            </td>
+            <td>
+              <div>
+                <div style="font-weight: 500;" x-text="user.nickname || '未设置昵称'"></div>
+                <div style="color: #6c757d; font-size: 0.875rem;" x-text="user.email"></div>
+                <div x-show="user.phone" style="color: #6c757d; font-size: 0.875rem;" x-text="user.phone"></div>
+              </div>
+            </td>
+            <td>
+              <span x-show="user.role === 'owner'" style="color: #dc3545; font-weight: bold;">👑 所有者</span>
+              <span x-show="user.role === 'admin'" style="color: #007bff; font-weight: bold;">⚡ 管理员</span>
+              <span x-show="user.role === 'user'" style="color: #6c757d;">👤 普通用户</span>
+            </td>
+            <td>
+              <span x-show="user.status === 1" style="color: #28a745; font-weight: bold;">✓ 正常</span>
+              <span x-show="user.status === 0" style="color: #dc3545; font-weight: bold;">✗ 禁用</span>
+            </td>
+            <td>
+              <span x-show="user.last_login" x-text="window.$wg.helper.formatDate(user.last_login)"></span>
+              <span x-show="!user.last_login" style="color: #6c757d;">从未登录</span>
+            </td>
+            <td x-text="window.$wg.helper.formatDate(user.created_at)"></td>
+            <td>
+              <div style="display: flex; gap: 0.5rem;">
+                <a :href="'/manager/users/' + user.id" class="btn btn-sm" style="color: #007bff; text-decoration: none;">
+                  查看
+                </a>
+                <template x-if="user.role !== 'owner'">
+                  <button x-show="user.status === 1" @click="updateUserStatus(user.id, 0)" class="btn btn-sm" style="color: #dc3545;">
+                    禁用
+                  </button>
+                  <button x-show="user.status === 0" @click="updateUserStatus(user.id, 1)" class="btn btn-sm" style="color: #28a745;">
+                    启用
+                  </button>
+                </template>
+              </div>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 空状态 -->
+  <div x-show="!loading && users.length === 0" style="text-align: center; padding: 3rem; color: #6c757d;">
+    <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
+    <div>暂无用户数据</div>
+  </div>
+
+  <!-- 分页 -->
+  <div x-show="pagination.total > 0" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+    <div>
+      共 <span x-text="pagination.total"></span> 条记录
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <button @click="changePage(pagination.current - 1)" 
+              :disabled="pagination.current <= 1" 
+              class="btn btn-sm">
+        上一页
+      </button>
+      <span style="padding: 0.25rem 0.5rem;">
+        第 <span x-text="pagination.current"></span> / <span x-text="Math.ceil(pagination.total / pagination.per_page)"></span> 页
+      </span>
+      <button @click="changePage(pagination.current + 1)" 
+              :disabled="pagination.current >= Math.ceil(pagination.total / pagination.per_page)" 
+              class="btn btn-sm">
+        下一页
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function userManager() {
+  return {
+    users: [],
+    loading: false,
+    error: '',
+    
+    // 搜索筛选
+    filters: {
+      email: '',
+      nickname: '',
+      status: '',
+      role: ''
+    },
+    
+    // 分页
+    pagination: {
+      current: 1,
+      per_page: 20,
+      total: 0
+    },
+
+    init() {
+      this.loadUsers();
+    },
+
+    async loadUsers() {
+      this.loading = true;
+      this.error = '';
+      
+      try {
+        const params = {
+          page: this.pagination.current,
+          per_page: this.pagination.per_page,
+          ...this.filters
+        };
+        
+        // 清理空值参数
+        Object.keys(params).forEach(key => {
+          if (params[key] === '' || params[key] === null || params[key] === undefined) {
+            delete params[key];
+          }
+        });
+        
+        const response = await window.$wg.with('manager').users.list(params);
+        
+        if (response.data) {
+          this.users = response.data.items || [];
+          if (response.data.pagination) {
+            this.pagination = {
+              ...this.pagination,
+              ...response.data.pagination
+            };
+          }
+        }
+      } catch (error) {
+        this.error = '加载用户列表失败: ' + error.message;
+        console.error('Load users error:', error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    searchUsers() {
+      this.pagination.current = 1;
+      this.loadUsers();
+    },
+
+    resetFilters() {
+      this.filters = {
+        email: '',
+        nickname: '',
+        status: '',
+        role: ''
+      };
+      this.pagination.current = 1;
+      this.loadUsers();
+    },
+
+    changePage(page) {
+      if (page >= 1 && page <= Math.ceil(this.pagination.total / this.pagination.per_page)) {
+        this.pagination.current = page;
+        this.loadUsers();
+      }
+    },
+
+    async updateUserStatus(userId, status) {
+      const action = status === 1 ? '启用' : '禁用';
+      if (!confirm(`确定要${action}此用户吗？`)) return;
+      
+      try {
+        await window.$wg.with('manager').users.update_status(userId, { status });
+        this.loadUsers();
+        this.showMessage(`用户${action}成功`, 'success');
+      } catch (error) {
+        this.error = `${action}用户失败: ` + error.message;
+        console.error('Update user status error:', error);
+      }
+    },
+
+    showMessage(message, type) {
+      // 简单的消息提示实现
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
+      alertDiv.textContent = message;
+      alertDiv.style.position = 'fixed';
+      alertDiv.style.top = '20px';
+      alertDiv.style.right = '20px';
+      alertDiv.style.zIndex = '9999';
+      
+      document.body.appendChild(alertDiv);
+      
+      setTimeout(() => {
+        if (alertDiv.parentNode) {
+          alertDiv.parentNode.removeChild(alertDiv);
+        }
+      }, 3000);
+    }
+  }
+}
+</script>

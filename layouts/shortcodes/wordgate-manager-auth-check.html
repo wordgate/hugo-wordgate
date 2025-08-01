@@ -1,0 +1,117 @@
+<!-- WordGate 管理员权限检查组件 -->
+<div id="manager-auth-check" style="display: none;">
+  <!-- 权限检查通过后显示的内容 -->
+  <div class="manager-authorized">
+    {{ .Inner }}
+  </div>
+</div>
+
+<!-- 权限不足提示 -->
+<div id="manager-unauthorized" style="display: none; text-align: center; padding: 3rem;">
+  <div style="font-size: 4rem; margin-bottom: 2rem;">🔒</div>
+  <h2 style="color: #dc3545; margin-bottom: 1rem;">访问受限</h2>
+  <p style="color: #6c757d; margin-bottom: 2rem;">您需要管理员权限才能访问此页面</p>
+  <div>
+    <a href="/wordgate/login" class="btn btn-primary" style="margin-right: 1rem;">登录</a>
+    <a href="/" class="btn" style="color: #6c757d; text-decoration: none;">返回首页</a>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  function checkManagerAuth() {
+    const authCheck = document.getElementById('manager-auth-check');
+    const unauthorized = document.getElementById('manager-unauthorized');
+    
+    if (!authCheck || !unauthorized) {
+      console.error('Manager auth check elements not found');
+      return;
+    }
+    
+    // 等待 WordGate SDK 加载
+    function waitForWordGate() {
+      if (!window.$wg) {
+        setTimeout(waitForWordGate, 100);
+        return;
+      }
+      
+      performAuthCheck();
+    }
+    
+    function performAuthCheck() {
+      try {
+        // 检查用户是否已登录
+        if (!window.$wg.auth.isLoggedIn()) {
+          console.log('[Manager Auth] 用户未登录');
+          showUnauthorized('请先登录以访问管理页面');
+          return;
+        }
+        
+        // 检查用户是否有管理员权限
+        if (!window.$wg.user.hasManagerRole()) {
+          console.log('[Manager Auth] 用户无管理员权限');
+          showUnauthorized('您没有管理员权限');
+          return;
+        }
+        
+        // 权限检查通过
+        console.log('[Manager Auth] 权限检查通过');
+        showAuthorized();
+        
+      } catch (error) {
+        console.error('[Manager Auth] 权限检查失败:', error);
+        showUnauthorized('权限检查失败，请刷新页面重试');
+      }
+    }
+    
+    function showAuthorized() {
+      authCheck.style.display = 'block';
+      unauthorized.style.display = 'none';
+      
+      // 触发自定义事件，通知其他组件权限检查通过
+      const event = new CustomEvent('wordgate:manager-auth-success', {
+        bubbles: true,
+        detail: { authorized: true }
+      });
+      document.dispatchEvent(event);
+    }
+    
+    function showUnauthorized(message) {
+      authCheck.style.display = 'none';
+      unauthorized.style.display = 'block';
+      
+      // 更新错误消息
+      const errorMsg = unauthorized.querySelector('p');
+      if (errorMsg && message) {
+        errorMsg.textContent = message;
+      }
+      
+      // 触发自定义事件，通知其他组件权限检查失败
+      const event = new CustomEvent('wordgate:manager-auth-failed', {
+        bubbles: true,
+        detail: { authorized: false, message: message }
+      });
+      document.dispatchEvent(event);
+    }
+    
+    // 开始权限检查
+    waitForWordGate();
+  }
+  
+  // DOM 加载完成后执行权限检查
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkManagerAuth);
+  } else {
+    checkManagerAuth();
+  }
+  
+  // 监听登录状态变化
+  document.addEventListener('wordgate:auth-changed', function(event) {
+    console.log('[Manager Auth] 登录状态变化:', event.detail);
+    setTimeout(checkManagerAuth, 100); // 延迟检查，确保用户信息已更新
+  });
+  
+})();
+</script>

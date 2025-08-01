@@ -1,0 +1,297 @@
+<div x-data="orderManager()" x-init="init()">
+  <!-- 搜索和筛选 -->
+  <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+    <form @submit.prevent="searchOrders()">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div class="form-group">
+          <label>订单号</label>
+          <input type="text" x-model="filters.order_no" class="form-control" placeholder="请输入订单号">
+        </div>
+        
+        <div class="form-group">
+          <label>支付状态</label>
+          <select x-model="filters.status" class="form-control">
+            <option value="">全部</option>
+            <option value="paid">已支付</option>
+            <option value="unpaid">未支付</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>用户邮箱</label>
+          <input type="email" x-model="filters.email" class="form-control" placeholder="请输入用户邮箱">
+        </div>
+        
+        <div class="form-group">
+          <label>排序方式</label>
+          <select x-model="filters.sort_by" class="form-control">
+            <option value="created_at">创建时间</option>
+            <option value="amount">订单金额</option>
+            <option value="updated_at">更新时间</option>
+          </select>
+        </div>
+      </div>
+      
+      <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+        <button type="submit" class="btn btn-primary">🔍 搜索</button>
+        <button type="button" @click="resetFilters()" class="btn">🔄 重置</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 加载状态 -->
+  <div x-show="loading" class="alert" style="background-color: #f8f9fa; border-color: #dee2e6;">
+    正在加载订单列表...
+  </div>
+
+  <!-- 错误提示 -->
+  <div x-show="error" x-text="error" class="alert alert-danger"></div>
+
+  <!-- 订单列表 -->
+  <div class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>订单号</th>
+          <th>用户信息</th>
+          <th>商品信息</th>
+          <th>订单金额</th>
+          <th>支付状态</th>
+          <th>创建时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="order in orders" :key="order.id">
+          <tr>
+            <td>
+              <a :href="'/manager/orders/' + order.order_no" style="color: #007bff; text-decoration: none;" x-text="order.order_no"></a>
+            </td>
+            <td>
+              <div x-show="order.user_info">
+                <div x-text="order.user_info?.nickname || order.user_info?.email || '用户' + order.user_id"></div>
+                <small style="color: #6c757d;" x-text="order.user_info?.email"></small>
+              </div>
+              <div x-show="!order.user_info" x-text="'用户' + order.user_id"></div>
+            </td>
+            <td>
+              <div x-text="order.items_summary"></div>
+              <small style="color: #6c757d;">共 <span x-text="order.items_count"></span> 项</small>
+            </td>
+            <td x-text="window.$wg.helper.formatMoney(order.amount)"></td>
+            <td>
+              <span x-show="order.is_paid" style="color: #28a745; font-weight: bold;">✓ 已支付</span>
+              <span x-show="!order.is_paid" style="color: #ffc107; font-weight: bold;">⏳ 未支付</span>
+              <div x-show="order.paid_at" style="font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;">
+                支付时间: <span x-text="window.$wg.helper.formatDate(order.paid_at)"></span>
+              </div>
+            </td>
+            <td x-text="window.$wg.helper.formatDate(order.created_at)"></td>
+            <td>
+              <div style="display: flex; gap: 0.5rem;">
+                <a :href="'/manager/orders/' + order.order_no" class="btn btn-sm" style="color: #007bff; text-decoration: none;">
+                  查看
+                </a>
+                <button x-show="!order.is_paid" @click="markAsPaid(order)" class="btn btn-sm" style="color: #28a745;">
+                  标记已付
+                </button>
+              </div>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 空状态 -->
+  <div x-show="!loading && orders.length === 0" style="text-align: center; padding: 3rem; color: #6c757d;">
+    <div style="font-size: 3rem; margin-bottom: 1rem;">📝</div>
+    <div>暂无订单数据</div>
+  </div>
+
+  <!-- 分页 -->
+  <div x-show="pagination.total > 0" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+    <div>
+      共 <span x-text="pagination.total"></span> 条记录
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <button @click="changePage(pagination.current - 1)" 
+              :disabled="pagination.current <= 1" 
+              class="btn btn-sm">
+        上一页
+      </button>
+      <span style="padding: 0.25rem 0.5rem;">
+        第 <span x-text="pagination.current"></span> / <span x-text="Math.ceil(pagination.total / pagination.per_page)"></span> 页
+      </span>
+      <button @click="changePage(pagination.current + 1)" 
+              :disabled="pagination.current >= Math.ceil(pagination.total / pagination.per_page)" 
+              class="btn btn-sm">
+        下一页
+      </button>
+    </div>
+  </div>
+
+  <!-- 标记已付款模态框 -->
+  <div x-show="showMarkPaidModal" class="modal show">
+    <div class="modal-dialog">
+      <h3>标记订单已付款</h3>
+      <p>确定要将订单 <strong x-text="selectedOrder?.order_no"></strong> 标记为已付款吗？</p>
+      
+      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+        <button @click="confirmMarkAsPaid()" class="btn btn-primary" :disabled="submitting">
+          <span x-show="!submitting">确定</span>
+          <span x-show="submitting">处理中...</span>
+        </button>
+        <button @click="closeMarkPaidModal()" class="btn">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function orderManager() {
+  return {
+    orders: [],
+    loading: false,
+    error: '',
+    
+    // 搜索筛选
+    filters: {
+      order_no: '',
+      status: '',
+      email: '',
+      sort_by: 'created_at',
+      sort_desc: true
+    },
+    
+    // 分页
+    pagination: {
+      current: 1,
+      per_page: 20,
+      total: 0
+    },
+    
+    // 标记付款
+    showMarkPaidModal: false,
+    selectedOrder: null,
+    submitting: false,
+
+    init() {
+      this.loadOrders();
+    },
+
+    async loadOrders() {
+      this.loading = true;
+      this.error = '';
+      
+      try {
+        const params = {
+          page: this.pagination.current,
+          per_page: this.pagination.per_page,
+          ...this.filters
+        };
+        
+        // 清理空值参数
+        Object.keys(params).forEach(key => {
+          if (params[key] === '' || params[key] === null || params[key] === undefined) {
+            delete params[key];
+          }
+        });
+        
+        const response = await window.$wg.with('manager').orders.list(params);
+        
+        if (response.data) {
+          this.orders = response.data.items || [];
+          if (response.data.pagination) {
+            this.pagination = {
+              ...this.pagination,
+              ...response.data.pagination
+            };
+          }
+        }
+      } catch (error) {
+        this.error = '加载订单列表失败: ' + error.message;
+        console.error('Load orders error:', error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    searchOrders() {
+      this.pagination.current = 1;
+      this.loadOrders();
+    },
+
+    resetFilters() {
+      this.filters = {
+        order_no: '',
+        status: '',
+        email: '',
+        sort_by: 'created_at',
+        sort_desc: true
+      };
+      this.pagination.current = 1;
+      this.loadOrders();
+    },
+
+    changePage(page) {
+      if (page >= 1 && page <= Math.ceil(this.pagination.total / this.pagination.per_page)) {
+        this.pagination.current = page;
+        this.loadOrders();
+      }
+    },
+
+    markAsPaid(order) {
+      this.selectedOrder = order;
+      this.showMarkPaidModal = true;
+    },
+
+    closeMarkPaidModal() {
+      this.showMarkPaidModal = false;
+      this.selectedOrder = null;
+      this.submitting = false;
+    },
+
+    async confirmMarkAsPaid() {
+      if (!this.selectedOrder) return;
+      
+      this.submitting = true;
+      
+      try {
+        await window.$wg.with('manager').orders.mark_as_paid({
+          order_no: this.selectedOrder.order_no
+        });
+        
+        this.closeMarkPaidModal();
+        this.loadOrders();
+        this.showMessage('订单已标记为已付款', 'success');
+        
+      } catch (error) {
+        this.error = '标记付款失败: ' + error.message;
+        console.error('Mark as paid error:', error);
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    showMessage(message, type) {
+      // 简单的消息提示实现
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
+      alertDiv.textContent = message;
+      alertDiv.style.position = 'fixed';
+      alertDiv.style.top = '20px';
+      alertDiv.style.right = '20px';
+      alertDiv.style.zIndex = '9999';
+      
+      document.body.appendChild(alertDiv);
+      
+      setTimeout(() => {
+        if (alertDiv.parentNode) {
+          alertDiv.parentNode.removeChild(alertDiv);
+        }
+      }, 3000);
+    }
+  }
+}
+</script>
