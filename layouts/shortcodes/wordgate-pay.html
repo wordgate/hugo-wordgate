@@ -10,7 +10,6 @@
         paymentProvider: '', // 选择的支付提供商
         isProcessingPayment: false, // 是否正在处理支付
         paymentMethods: [], // 支付方式列表
-        showMorePayments: false, // 是否显示更多支付方式
         
         init() {
           // 从URL获取订单号
@@ -218,79 +217,39 @@
         </div>
       </div>
     </div>
-    <!-- 第六行：支付方式列表: 无支付方式时显示加载中 -->
+    <!-- 支付方式列表: 无支付方式时显示加载中 -->
     <div class="pure-g" x-show="paymentMethods.length === 0">
-      <div class="pure-u-1" class="wordgate-text-center">
+      <div class="pure-u-1 wordgate-text-center">
         <div class="wordgate-spinner"></div>
         <div class="wordgate-text-muted">加载支付方式...</div>
       </div>
     </div>
-    <!-- 第六行：支付方式列表: 有支付方式时显示选项 -->
-    <template x-if="paymentMethods.length > 0">
-      <!-- 常用支付方式：优先级高的方式，大屏一行3个，小屏一行1个 -->
-      <div class="pure-g">
-        <template x-for="method in paymentMethods.filter(m => m.priority <= 10)" :key="method.id">
-          <div class="pure-u-1 pure-u-md-1-3">
-            <div style="padding: 0.5em;">
-              <a class="wordgate-pay-option pure-button" :class="{'is-selected': method.id === paymentMethod}"
-                @click="selectPayment(method.id.split('.')[0], method.id)">
-                <div class="wordgate-option-content">
-                  <div class="wordgate-option-icon" x-show="method.icon">
-                    <img :src="method.icon" alt="" style="width: 100%; height: 100%; object-fit: contain;" />
-                  </div>
-                  <div class="wordgate-option-info">
-                    <span class="wordgate-option-name" x-text="method.name"></span>
-                  </div>
-                  <div class="wordgate-option-check" x-show="method.id === paymentMethod">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" stroke-width="2">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                  </div>
+    <!-- 支付方式列表: 直接显示所有支付方式 -->
+    <div class="pure-g" x-show="paymentMethods.length > 0">
+      <template x-for="method in paymentMethods" :key="method.id">
+        <div class="pure-u-1 pure-u-md-1-3">
+          <div style="padding: 0.5em;">
+            <a class="wordgate-pay-option pure-button" :class="{'is-selected': method.id === paymentMethod}"
+              @click="selectPayment(method.id.split('.')[0], method.id)">
+              <div class="wordgate-option-content">
+                <div class="wordgate-option-icon" x-show="method.icon">
+                  <img :src="method.icon" alt="" style="width: 100%; height: 100%; object-fit: contain;" />
                 </div>
-              </a>
-            </div>
+                <div class="wordgate-option-info">
+                  <span class="wordgate-option-name" x-text="method.name"></span>
+                </div>
+                <div class="wordgate-option-check" x-show="method.id === paymentMethod">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </a>
           </div>
-        </template>
-      </div>
-    </template>
-
-
-      <!-- 更多支付方式折叠按钮 -->
-      <div class="pure-g" x-show="paymentMethods.some(m => m.priority > 10)">
-        <div class="pure-u-1 wordgate-text-center">
-          <button @click="showMorePayments = !showMorePayments" class="wordgate-more-button pure-button"
-            x-text="showMorePayments ? '收起更多支付方式 ↑' : '展开更多支付方式 ↓'">
-          </button>
         </div>
-      </div>
-
-      <!-- 不常用支付方式：优先级低的方式，可折叠 -->
-      <div class="pure-g" x-show="showMorePayments">
-        <template x-for="method in paymentMethods.filter(m => m.priority > 10)" :key="method.id">
-          <div class="pure-u-1 pure-u-md-1-3">
-            <div style="padding: 0.5em;">
-              <a class="wordgate-pay-option pure-button" :class="{'is-selected': method.id === paymentMethod}"
-                @click="selectPayment(method.id.split('.')[0], method.id)">
-                <div class="wordgate-option-content">
-                  <div class="wordgate-option-icon" x-show="method.icon">
-                    <img :src="method.icon" alt="" style="width: 100%; height: 100%; object-fit: contain;" />
-                  </div>
-                  <div class="wordgate-option-info">
-                    <span class="wordgate-option-name" x-text="method.name"></span>
-                  </div>
-                  <div class="wordgate-option-check" x-show="method.id === paymentMethod">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" stroke-width="2">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                  </div>
-                </div>
-              </a>
-            </div>
-          </div>
-        </template>
-      </div>
+      </template>
+    </div>
 
     <!-- 第六行：立即支付按钮 -->
     <div class="pure-g" style="margin-top: 2em;">
@@ -498,4 +457,5 @@
     margin: 0 0 1em;
     color: #1f2937;
   }
+
 </style>

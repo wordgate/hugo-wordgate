@@ -367,10 +367,6 @@ class WordGate {
               this.request("POST", `/api/payments/${intentID}/cancel`),
             get: (intentID) =>
               this.request("GET", `/api/payments/${intentID}`),
-            get_tron_address: (intentID) => 
-              this.request("GET", `/api/payments/${intentID}/tron-address`),
-            check_tron_status: (intentID) =>
-              this.request("GET", `/api/payments/${intentID}/tron-status`),
           };
           break;
         case "manager":
@@ -715,74 +711,6 @@ class WordGate {
     document.dispatchEvent(event);
   }
 
-  /**
-   * TronPay支付状态轮询方法
-   * @param {string} intentID - 支付意图ID
-   * @param {Function} callback - 状态回调函数
-   * @param {number} interval - 轮询间隔(毫秒)
-   * @returns {Object} 控制轮询的对象
-   */
-  pollTronStatus(intentID, callback, interval = 5000) {
-    if (!intentID) {
-      console.error('需要提供intentID进行状态轮询');
-      return null;
-    }
-    
-    const stopPolling = { active: true };
-    const checkStatus = async () => {
-      if (!stopPolling.active) return;
-      
-      try {
-        const result = await this.with('payments').check_tron_status(intentID);
-        const shouldContinue = callback(result);
-        
-        // 如果回调返回false，或者状态已经是paid或timeout，停止轮询
-        if (shouldContinue === false || 
-            result.status === 'paid' || 
-            result.status === 'timeout') {
-          stopPolling.active = false;
-          return;
-        }
-        
-        // 继续轮询
-        setTimeout(checkStatus, interval);
-      } catch (error) {
-        console.error('轮询TronPay状态时出错:', error);
-        // 出错时仍然继续轮询
-        setTimeout(checkStatus, interval);
-      }
-    };
-    
-    // 开始轮询
-    checkStatus();
-    
-    // 返回停止轮询的控制对象
-    return {
-      stop: () => {
-        stopPolling.active = false;
-      }
-    };
-  }
-  
-  /**
-   * TronPay支付超时处理方法
-   * @param {string} intentID - 支付意图ID
-   * @param {Function} callback - 超时回调函数
-   * @returns {Promise} 处理结果
-   */
-  handleTronTimeout(intentID, callback) {
-    return this.with('payments').check_tron_status(intentID)
-      .then(response => {
-        if (response.status === 'timeout') {
-          return callback(response);
-        }
-        return response;
-      })
-      .catch(error => {
-        console.error('检查TronPay超时状态时出错:', error);
-        throw error;
-      });
-  }
 }
 
 /**

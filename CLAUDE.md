@@ -58,7 +58,6 @@ Core JavaScript client providing:
 - Multiple payment methods support
 - Order creation and tracking
 - Payment result handling
-- TronPay cryptocurrency payments
 
 ### Template System
 
