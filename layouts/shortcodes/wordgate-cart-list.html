@@ -201,7 +201,7 @@
             orderData.address_id = this.selectedAddressId;
           }
           
-          const {data} = await $wg.with('orders').create(orderData);
+          const {data} = await $wg.with('orders').createProduct(orderData);
           
           // 清空购物车
           $wg.cart.clear();

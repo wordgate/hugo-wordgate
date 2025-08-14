@@ -350,7 +350,10 @@ class WordGate {
           break;
         case "orders":
           this._resource_cache[name] = {
-            create: this._make_resource_method("POST", "/api/orders/create"),
+            // 创建商品订单
+            createProduct: this._make_resource_method("POST", "/api/product-orders/create"),
+            // 创建会员订单  
+            createMembership: this._make_resource_method("POST", "/api/membership-orders/create"),
             list: (params = {}) => {
               const query = new URLSearchParams(params).toString();
               return this.request("GET", `/api/orders?${query}`);
