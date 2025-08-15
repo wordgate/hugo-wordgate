@@ -668,3 +668,5 @@ input:checked + .slider:before {
   }
 }
 </style>
+
+{{< /wordgate-auth-required >}}
