@@ -1,0 +1,305 @@
+<!-- 显示会员等级列表的shortcode -->
+<div id="membership-tiers-widget-{{ .Get "id" | default "default" }}" class="membership-tiers-widget">
+  {{ $layout := .Get "layout" | default "grid" }}
+  {{ $showPrices := .Get "show_prices" | default "true" }}
+  {{ $showDescription := .Get "show_description" | default "false" }}
+  
+  <div class="tiers-loading">
+    <p>正在加载会员等级...</p>
+  </div>
+  
+  <div class="tiers-content" style="display: none;">
+    <div class="tiers-list {{ $layout }}-layout">
+      <!-- 会员等级将通过JavaScript动态加载 -->
+    </div>
+  </div>
+  
+  <div class="tiers-error" style="display: none;">
+    <p>加载会员等级失败</p>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const widgetId = '{{ .Get "id" | default "default" }}';
+  const widget = document.getElementById(`membership-tiers-widget-${widgetId}`);
+  const layout = '{{ $layout }}';
+  const showPrices = {{ $showPrices }};
+  const showDescription = {{ $showDescription }};
+  
+  if (!widget.hasAttribute('data-loaded')) {
+    widget.setAttribute('data-loaded', 'true');
+    loadMembershipTiers(widget, layout, showPrices, showDescription);
+  }
+});
+
+async function loadMembershipTiers(widget, layout, showPrices, showDescription) {
+  const loadingEl = widget.querySelector('.tiers-loading');
+  const contentEl = widget.querySelector('.tiers-content');
+  const errorEl = widget.querySelector('.tiers-error');
+  const listEl = widget.querySelector('.tiers-list');
+  
+  try {
+    const response = await wg.api.get('/api/membership/tiers');
+    
+    if (response.code === 0) {
+      const tiers = response.data || [];
+      
+      loadingEl.style.display = 'none';
+      contentEl.style.display = 'block';
+      
+      if (tiers.length === 0) {
+        listEl.innerHTML = '<p class="no-tiers">暂无会员等级</p>';
+        return;
+      }
+      
+      listEl.innerHTML = tiers.map(tier => {
+        let tierHtml = `
+          <div class="tier-item ${tier.is_default ? 'default-tier' : ''}">
+            <div class="tier-header">
+              <h4>${tier.name}</h4>
+              <span class="tier-level">L${tier.level}</span>
+              ${tier.is_default ? '<span class="default-badge">默认</span>' : ''}
+            </div>
+        `;
+        
+        if (showPrices && tier.prices && tier.prices.length > 0) {
+          tierHtml += `
+            <div class="tier-prices">
+              ${tier.prices.map(price => `
+                <div class="price-item">
+                  <span class="period">${getPeriodText(price.period_type, price.months)}</span>
+                  <span class="price">¥${(price.price / 100).toFixed(2)}</span>
+                  ${price.original_price !== price.price ? 
+                    `<span class="original-price">¥${(price.original_price / 100).toFixed(2)}</span>` : 
+                    ''
+                  }
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+        
+        tierHtml += `
+            <div class="tier-actions">
+              <button class="pure-button pure-button-primary tier-select-btn" 
+                      onclick="selectTier('${tier.id}', '${tier.name}')">
+                选择
+              </button>
+            </div>
+          </div>
+        `;
+        
+        return tierHtml;
+      }).join('');
+      
+    } else {
+      throw new Error(response.message);
+    }
+  } catch (error) {
+    console.error('加载会员等级失败:', error);
+    loadingEl.style.display = 'none';
+    errorEl.style.display = 'block';
+  }
+}
+
+function getPeriodText(periodType, months) {
+  switch (periodType) {
+    case 'monthly': return '月付';
+    case 'quarterly': return '季付';
+    case 'yearly': return '年付';
+    case 'custom': return `${months}个月`;
+    default: return periodType;
+  }
+}
+
+function selectTier(tierId, tierName) {
+  if (!wg.auth.isLogin()) {
+    wg.auth.showLoginModal();
+    return;
+  }
+  
+  // 可以自定义选择会员等级后的行为
+  // 默认跳转到会员等级页面
+  window.location.href = `/wordgate/wordgate-membership-tiers/#tier-${tierId}`;
+}
+</script>
+
+<style>
+.membership-tiers-widget {
+  margin: 20px 0;
+}
+
+.tiers-loading, .tiers-error {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+.tiers-error {
+  color: #e74c3c;
+}
+
+.tiers-list.grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.tiers-list.list-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tier-item {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.tier-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.tier-item.default-tier {
+  border-color: #0078e7;
+  background: linear-gradient(135deg, #f8fbff 0%, #fff 100%);
+}
+
+.tier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.tier-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.tier-level {
+  background: #f0f0f0;
+  color: #666;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.default-badge {
+  background: #0078e7;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.tier-prices {
+  margin-bottom: 12px;
+}
+
+.price-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.price-item:last-child {
+  border-bottom: none;
+}
+
+.period {
+  color: #666;
+  font-size: 13px;
+}
+
+.price {
+  font-weight: 500;
+  color: #0078e7;
+}
+
+.original-price {
+  color: #999;
+  font-size: 12px;
+  text-decoration: line-through;
+  margin-left: 6px;
+}
+
+.tier-actions {
+  text-align: center;
+}
+
+.tier-select-btn {
+  background: #0078e7;
+  border: none;
+  color: white;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tier-select-btn:hover {
+  background: #005bb5;
+}
+
+.no-tiers {
+  text-align: center;
+  color: #999;
+  padding: 40px 20px;
+}
+
+/* List layout specific styles */
+.list-layout .tier-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.list-layout .tier-header {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.list-layout .tier-prices {
+  flex: 2;
+  margin-bottom: 0;
+  display: flex;
+  gap: 12px;
+}
+
+.list-layout .price-item {
+  border: none;
+  padding: 0;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.list-layout .tier-actions {
+  flex: 0 0 auto;
+}
+
+@media screen and (max-width: 600px) {
+  .tiers-list.grid-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .list-layout .tier-item {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .list-layout .tier-prices {
+    justify-content: center;
+  }
+}
+</style>

@@ -1,0 +1,137 @@
+<!-- 显示用户会员状态的shortcode -->
+<div id="membership-status-{{ .Get "id" | default "default" }}" class="membership-status-widget">
+  <div class="status-loading">
+    <span>加载中...</span>
+  </div>
+  <div class="status-content" style="display: none;">
+    <div class="no-membership" style="display: none;">
+      <span class="status-text">非会员</span>
+      {{ if .Get "show_upgrade" }}
+      <a href="/wordgate/wordgate-membership-tiers/" class="upgrade-link">升级</a>
+      {{ end }}
+    </div>
+    <div class="has-membership" style="display: none;">
+      <span class="membership-tier"></span>
+      <span class="membership-expiry"></span>
+      {{ if .Get "show_manage" }}
+      <a href="/wordgate/wordgate-user-membership/" class="manage-link">管理</a>
+      {{ end }}
+    </div>
+  </div>
+  <div class="status-error" style="display: none;">
+    <span>加载失败</span>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const widgetId = '{{ .Get "id" | default "default" }}';
+  const widget = document.getElementById(`membership-status-${widgetId}`);
+  
+  if (!widget.hasAttribute('data-loaded')) {
+    widget.setAttribute('data-loaded', 'true');
+    loadMembershipStatus(widget);
+  }
+});
+
+async function loadMembershipStatus(widget) {
+  const loadingEl = widget.querySelector('.status-loading');
+  const contentEl = widget.querySelector('.status-content');
+  const errorEl = widget.querySelector('.status-error');
+  
+  try {
+    if (!wg.auth.isLogin()) {
+      // 未登录状态
+      loadingEl.style.display = 'none';
+      contentEl.style.display = 'block';
+      widget.querySelector('.no-membership').style.display = 'block';
+      return;
+    }
+
+    const response = await wg.api.get('/api/membership/user');
+    
+    loadingEl.style.display = 'none';
+    contentEl.style.display = 'block';
+    
+    if (response.code === 0 && response.data) {
+      const membership = response.data;
+      const hasMembershipEl = widget.querySelector('.has-membership');
+      const tierEl = widget.querySelector('.membership-tier');
+      const expiryEl = widget.querySelector('.membership-expiry');
+      
+      tierEl.textContent = membership.tier_name;
+      
+      const endDate = new Date(membership.end_date);
+      const now = new Date();
+      const isExpired = endDate < now;
+      
+      if (isExpired) {
+        expiryEl.textContent = '已过期';
+        expiryEl.className = 'membership-expiry expired';
+      } else {
+        const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+        expiryEl.textContent = `${daysLeft}天后到期`;
+        expiryEl.className = `membership-expiry ${daysLeft <= 7 ? 'expiring-soon' : 'active'}`;
+      }
+      
+      hasMembershipEl.style.display = 'flex';
+    } else {
+      widget.querySelector('.no-membership').style.display = 'block';
+    }
+  } catch (error) {
+    console.error('加载会员状态失败:', error);
+    loadingEl.style.display = 'none';
+    errorEl.style.display = 'block';
+  }
+}
+</script>
+
+<style>
+.membership-status-widget {
+  display: inline-block;
+  font-size: 14px;
+}
+
+.status-loading, .status-error {
+  color: #999;
+  font-size: 12px;
+}
+
+.status-content .no-membership,
+.status-content .has-membership {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.membership-tier {
+  font-weight: 500;
+  color: #0078e7;
+}
+
+.membership-expiry {
+  font-size: 12px;
+}
+
+.membership-expiry.active {
+  color: #28a745;
+}
+
+.membership-expiry.expiring-soon {
+  color: #ffc107;
+}
+
+.membership-expiry.expired {
+  color: #dc3545;
+}
+
+.upgrade-link, .manage-link {
+  color: #0078e7;
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.upgrade-link:hover, .manage-link:hover {
+  text-decoration: underline;
+}
+</style>
