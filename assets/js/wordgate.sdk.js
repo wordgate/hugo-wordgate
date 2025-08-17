@@ -415,7 +415,6 @@ class WordGate {
               update: (code, data) => this.request("PUT", `/app/membership/tiers/${code}`, data),
               delete: (code) => this.request("DELETE", `/app/membership/tiers/${code}`),
               restore: (code) => this.request("POST", `/app/membership/tiers/${code}/restore`),
-              sync: () => this.request("POST", "/app/membership/sync"),
             },
             // 应用配置管理 API
             config: {
